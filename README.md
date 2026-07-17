@@ -40,44 +40,6 @@ Customer churn is one of the most expensive problems for subscription and accoun
 Runs entirely client-side — no backend, no data leaves the browser.
 
 ---
-
-## 📂 Folder Structure
-
-```text
-FUTURE_DS_02/
-├── sample-data/
-│   └── telco_churn.csv        # Sample dataset for demoing the tool
-├── src/
-│   ├── components/
-│   │   ├── UploadPanel.tsx        # File upload dropzone + sample data trigger
-│   │   ├── ColumnMapper.tsx       # Schema preview & manual column override
-│   │   ├── KPICards.tsx           # Executive metric tiles with sparklines
-│   │   ├── Charts.tsx             # Segment & trend visualizations
-│   │   ├── InsightsPanel.tsx      # Data-driven insights & recommendations
-│   │   ├── DataTable.tsx          # Searchable, paginated records grid
-│   │   └── InteractiveBackground.tsx  # Canvas particle background
-│   ├── data/
-│   │   └── telco_churn.ts         # Inline sample data for instant demo
-│   ├── types/
-│   │   └── index.ts                # Shared TypeScript interfaces
-│   ├── utils/
-│   │   ├── csvParser.ts            # PapaParse wrapper & row sanitization
-│   │   ├── columnDetector.ts       # Header/value heuristics for auto-mapping
-│   │   ├── churnEngine.ts          # Churn/retention aggregation logic
-│   │   └── insightEngine.ts        # Rules-based insight & recommendation generator
-│   ├── App.tsx                     # App state coordinator & filter logic
-│   ├── index.css
-│   └── main.tsx
-├── package.json
-├── tailwind.config.js
-├── tsconfig.json
-└── vite.config.ts
-```
-
----
-
-## ⚡ Installation & Local Setup
-
 **Prerequisites:** Node.js v18+
 
 ```bash
