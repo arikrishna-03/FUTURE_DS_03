@@ -2,15 +2,21 @@
 
 An enterprise-grade, portfolio-ready Customer Retention & Churn Analytics Dashboard built as a dataset-agnostic intelligence platform. Designed to resemble premium business intelligence dashboards like those from Microsoft Fabric, Stripe, Vercel, and Salesforce, this application operates 100% client-side to instantly parse, clean, map, and visualize customer churn data.
 
+---
+
 ## 🌟 Live Demo & Portfolio Highlights
+
 - **Dynamic Dataset Agnosticism:** Upload *any* customer subscription or accounts dataset (CSV).
 - **Intelligent Schema Detector:** Automatically maps critical fields (churn flags, monthly spend, tenure lengths, IDs) and auto-generates segment distributions.
 - **Data Quality Safeguards:** Identifies and handles missing values, inconsistent boolean states (1/0, yes/no, true/false), and displays a detailed data quality report.
 - **Dynamic Insights Engine:** Computes correlation reports and issues over 10 operational customer retention recommendations on-the-fly based on uploaded data.
+- **Dynamic Accent Color Customizer:** Switch between 6 premium enterprise styles (Indigo, Blue, Emerald, Purple, Rose, Amber). The borders, logos, badge tags, and Recharts color maps dynamically repaint to match your chosen aesthetic.
+- **Awwwards-Nominated Backdrop Interactivity:** Implements an optimized HTML5 Canvas particle generator with mouse repulsion physics and Vercel-style cursor radial halo tracking (inspired by `skyclinics.al`).
 
 ---
 
 ## 🛠️ Technology Stack
+
 - **Framework:** React 18, Vite, TypeScript
 - **Styling:** Tailwind CSS (Dark Mode by default, support for Light Mode transitions)
 - **Charts:** Recharts (Interactive SVG curves, gradients, and custom tooltips)
@@ -28,12 +34,13 @@ FUTURE_DS_02/
 │   └── telco_churn.csv       # High-fidelity sample dataset for manual upload testing
 ├── src/
 │   ├── components/
-│   │   ├── UploadPanel.tsx   # File upload dropzone and sample triggers
+│   │   ├── UploadPanel.tsx   # File upload dropzone and sample triggers (light/dark responsive)
 │   │   ├── ColumnMapper.tsx  # Dynamic dropdown mapping and CSV schema previewer
 │   │   ├── KPICards.tsx      # Core executive metric tiles with custom SVG sparklines
 │   │   ├── Charts.tsx        # Responsive Recharts visualizations & segment breakdowns
 │   │   ├── InsightsPanel.tsx # Operational warnings and 10 prioritized retention actions
-│   │   └── DataTable.tsx     # Paginated and searchable records grid with CSV export
+│   │   ├── DataTable.tsx     # Paginated and searchable records grid with CSV export
+│   │   └── InteractiveBackground.tsx # Canvas particles and radial mouse halo overlays
 │   ├── data/
 │   │   └── telco_churn.ts    # Inline sample data for instant demo simulations
 │   ├── types/
