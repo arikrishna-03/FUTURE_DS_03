@@ -1,525 +1,402 @@
-import { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
+import { Database, ShieldAlert, LineChart, Sparkles, LogOut } from 'lucide-react';
 import { UploadPanel } from './components/UploadPanel';
 import { ColumnMapper } from './components/ColumnMapper';
 import { KPICards } from './components/KPICards';
-import { Charts } from './components/Charts';
+import { DashboardFilters } from './components/DashboardFilters';
 import { InsightsPanel } from './components/InsightsPanel';
+import { RecommendationsPanel } from './components/RecommendationsPanel';
 import { DataTable } from './components/DataTable';
-import { InteractiveBackground } from './components/InteractiveBackground';
-import { ColumnMapping, DashboardData, ThemeAccentColor } from './types';
-import { parseCSV } from './utils/csvParser';
-import { detectColumns } from './utils/columnDetector';
-import { processDashboardData, applyFilters } from './utils/churnEngine';
-import { 
-  BarChart3, 
-  Database, 
-  RefreshCw, 
-  Printer, 
-  Moon, 
-  Sun,
-  Layers,
-  Sparkles
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 
-export default function App() {
-  const [step, setStep] = useState<'upload' | 'mapping' | 'dashboard'>('upload');
-  const [isLoading, setIsLoading] = useState(false);
-  const [fileName, setFileName] = useState('');
-  
-  // Raw parsed CSV
-  const [rawData, setRawData] = useState<any[]>([]);
-  const [headers, setHeaders] = useState<string[]>([]);
-  
-  // Mappings
-  const [mapping, setMapping] = useState<ColumnMapping>({
-    customerId: '',
-    churn: '',
-    tenure: '',
-    monthlyCharges: '',
-    totalCharges: '',
-    categorical: [],
-  });
+// Charts
+import { FunnelVisualization } from './charts/FunnelVisualization';
+import { ChannelPerformanceChart } from './charts/ChannelPerformanceChart';
+import { CampaignPerformanceChart } from './charts/CampaignPerformanceChart';
+import { CustomerBehaviorChart } from './charts/CustomerBehaviorChart';
+import { RevenueAnalyticsChart } from './charts/RevenueAnalyticsChart';
 
-  // Base processed dashboard data (without active filter reductions)
-  const [baseDashboardData, setBaseDashboardData] = useState<DashboardData | null>(null);
+// Utils
+import { cleanAndProcessData, filterData, calculateFunnelData, calculateKPIs, calculateChannelPerformance, calculateCampaignPerformance, calculateDailyTrends, calculateSegmentBreakdown } from './utils/funnelEngine';
+import { getFunnelInsights, getChannelInsights, getCampaignInsights, getSegmentInsights, getRevenueInsights, generateRecommendations } from './utils/insightEngine';
+import type { CSVDataPreview, ColumnMapping } from './types';
 
-  // Active filters mapping: Column -> Selected Values
-  const [activeFilters, setActiveFilters] = useState<Record<string, string[]>>({});
+export const App: React.FC = () => {
+  // 1. Navigation & State Setup
+  const [csvData, setCsvData] = useState<CSVDataPreview | null>(null);
+  const [mapping, setMapping] = useState<ColumnMapping | null>(null);
+  const [orderedStages, setOrderedStages] = useState<string[]>([]);
+  const [isCalibrated, setIsCalibrated] = useState(false);
+  const [fileName, setFileName] = useState<string>('sample_marketing_funnel.csv');
 
-  // Theme support
+  // Theme State
   const [isDarkMode, setIsDarkMode] = useState(true);
-  const [showParticles, setShowParticles] = useState(false); // Calm UI default: false
-  const [themeColor] = useState<ThemeAccentColor>('indigo'); // Cohesive standard palette
 
-  // Keep theme dark class synchronized on mount and toggle
-  useEffect(() => {
-    const html = document.documentElement;
-    if (isDarkMode) {
-      html.classList.add('dark');
-    } else {
-      html.classList.remove('dark');
-    }
-  }, [isDarkMode]);
+  // Filters State
+  const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
+  const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
+  const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
+  const [selectedDevices, setSelectedDevices] = useState<string[]>([]);
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Section Tracking via Intersection Observer
-  const [activeSection, setActiveSection] = useState('overview');
+  // 2. CSV Parser Callbacks
+  const handleDataParsed = (data: CSVDataPreview) => {
+    setCsvData(data);
+    setIsCalibrated(false); // require recalibration for a new upload
+  };
 
-  useEffect(() => {
-    if (step !== 'dashboard') return;
-    const sections = ['overview', 'segments', 'financial', 'insights', 'datatable'];
-    const observers = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setActiveSection(entry.target.id);
-          }
-        });
-      },
-      { rootMargin: '-25% 0px -55% 0px' }
+  const handleLoadSample = () => {
+    setFileName('marketing_funnel.csv');
+  };
+
+  const handleMappingConfirmed = (confirmedMapping: ColumnMapping, stages: string[]) => {
+    setMapping(confirmedMapping);
+    setOrderedStages(stages);
+    setIsCalibrated(true);
+  };
+
+  const handleReload = () => {
+    setCsvData(null);
+    setMapping(null);
+    setOrderedStages([]);
+    setIsCalibrated(false);
+    // Reset filters
+    handleResetFilters();
+  };
+
+  const handleResetFilters = () => {
+    setSelectedChannels([]);
+    setSelectedCampaigns([]);
+    setSelectedRegions([]);
+    setSelectedDevices([]);
+    setStartDate('');
+    setEndDate('');
+    setSearchQuery('');
+  };
+
+  const handleFilterChange = (type: 'channels' | 'campaigns' | 'regions' | 'devices', values: string[]) => {
+    if (type === 'channels') setSelectedChannels(values);
+    if (type === 'campaigns') setSelectedCampaigns(values);
+    if (type === 'regions') setSelectedRegions(values);
+    if (type === 'devices') setSelectedDevices(values);
+  };
+
+  const handleDateChange = (start: string, end: string) => {
+    setStartDate(start);
+    setEndDate(end);
+  };
+
+  // 3. Dynamic Calculation Pipeline (Memoized)
+  const dataPipeline = useMemo(() => {
+    if (!csvData || !mapping) return null;
+
+    // A. Clean and process data (deduplicate, parse numbers, typecast)
+    const { cleanedRows, quality } = cleanAndProcessData(csvData.rows, mapping);
+
+    // B. Extract filter lists from the ENTIRE cleaned dataset (before filters are applied)
+    const uniqueChannels = Array.from(new Set(cleanedRows.map(r => r._channel).filter(Boolean))) as string[];
+    const uniqueCampaigns = Array.from(new Set(cleanedRows.map(r => r._campaign).filter(Boolean))) as string[];
+    const uniqueRegions = Array.from(new Set(cleanedRows.map(r => r._region).filter(Boolean))) as string[];
+    const uniqueDevices = Array.from(new Set(cleanedRows.map(r => r._device).filter(Boolean))) as string[];
+
+    // C. Apply active dashboard filters
+    const filteredRows = filterData(cleanedRows, {
+      startDate,
+      endDate,
+      channels: selectedChannels,
+      campaigns: selectedCampaigns,
+      regions: selectedRegions,
+      devices: selectedDevices,
+      searchQuery
+    });
+
+    // D. Run Aggregations
+    const funnelData = calculateFunnelData(filteredRows, mapping, orderedStages);
+    const kpis = calculateKPIs(filteredRows, funnelData, mapping);
+    const channelsData = calculateChannelPerformance(filteredRows, mapping, funnelData);
+    const campaignsData = calculateCampaignPerformance(filteredRows, mapping, funnelData);
+    const dailyTrends = calculateDailyTrends(filteredRows, mapping);
+    
+    // Segment breakouts
+    const deviceBreakdown = calculateSegmentBreakdown(filteredRows, '_device');
+    const regionBreakdown = calculateSegmentBreakdown(filteredRows, '_region');
+
+    // E. Generate plain-English analytics insights
+    const funnelInsights = getFunnelInsights(funnelData, kpis);
+    const channelInsights = getChannelInsights(channelsData);
+    const campaignInsights = getCampaignInsights(campaignsData);
+    const segmentInsights = getSegmentInsights(deviceBreakdown, regionBreakdown);
+    const revenueInsights = getRevenueInsights(kpis);
+
+    // F. Generate actionable Recommendations Playbook (at least 10 items)
+    const recommendations = generateRecommendations(
+      funnelData,
+      channelsData,
+      campaignsData,
+      deviceBreakdown,
+      regionBreakdown,
+      kpis
     );
 
-    sections.forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) observers.observe(el);
-    });
+    return {
+      filteredRows,
+      quality,
+      filterChoices: {
+        channels: uniqueChannels,
+        campaigns: uniqueCampaigns,
+        regions: uniqueRegions,
+        devices: uniqueDevices
+      },
+      funnelData,
+      kpis,
+      channelsData,
+      campaignsData,
+      dailyTrends,
+      deviceBreakdown,
+      regionBreakdown,
+      insights: {
+        funnelInsights,
+        channelInsights,
+        campaignInsights,
+        segmentInsights,
+        revenueInsights
+      },
+      recommendations
+    };
+  }, [csvData, mapping, orderedStages, selectedChannels, selectedCampaigns, selectedRegions, selectedDevices, startDate, endDate, searchQuery]);
 
-    return () => observers.disconnect();
-  }, [step]);
+  // 4. Exporting Utilities
+  const handleExportCSV = () => {
+    if (!dataPipeline) return;
 
-  // Parses uploaded CSV string and triggers mapping state
-  const handleCSVText = async (csvText: string, filename: string) => {
-    setIsLoading(true);
-    setFileName(filename);
-    try {
-      const result = await parseCSV(csvText);
-      setRawData(result.data);
-      setHeaders(result.headers);
-
-      // Guess columns
-      const autoMapping = detectColumns(result.headers, result.data);
-      setMapping(autoMapping);
-      setStep('mapping');
-    } catch (err) {
-      console.error(err);
-      alert("Failed to parse CSV file. Ensure it is formatted correctly.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Triggers final dashboard compilation
-  const handleConfirmMapping = (confirmedMapping: ColumnMapping) => {
-    setMapping(confirmedMapping);
-    const data = processDashboardData(rawData, confirmedMapping);
-    setBaseDashboardData(data);
+    // Construct a summarized CSV download payload
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Category,Metric,Value\n";
     
-    // Initialize active filters as empty arrays for all categorical columns
-    const initialFilters: Record<string, string[]> = {};
-    confirmedMapping.categorical.forEach((col) => {
-      initialFilters[col] = [];
-    });
-    setActiveFilters(initialFilters);
-    
-    setStep('dashboard');
+    const { kpis } = dataPipeline;
+    csvContent += `KPI,Total Traffic,${kpis.totalVisitors}\n`;
+    csvContent += `KPI,Total Leads,${kpis.totalLeads}\n`;
+    csvContent += `KPI,Conversions,${kpis.totalConversions}\n`;
+    csvContent += `KPI,Funnel Conversion Rate,${kpis.overallConversionRate.toFixed(2)}%\n`;
+    csvContent += `KPI,Total Spend,${kpis.totalSpend}\n`;
+    csvContent += `KPI,Total Revenue,${kpis.totalRevenue}\n`;
+    csvContent += `KPI,ROI,${kpis.roi.toFixed(1)}%\n`;
+    csvContent += `KPI,CAC,${kpis.cac.toFixed(2)}\n`;
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `funnel_dashboard_export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
-  // Computes current filtered dashboard data
-  const dashboardData = useMemo(() => {
-    if (!baseDashboardData) return null;
-    return applyFilters(baseDashboardData, activeFilters);
-  }, [baseDashboardData, activeFilters]);
-
-  // Extract unique segment options for filter selectors
-  const filterOptions = useMemo(() => {
-    if (!baseDashboardData) return {};
-    
-    const options: Record<string, string[]> = {};
-    baseDashboardData.mapping.categorical.forEach((col) => {
-      const values = new Set<string>();
-      baseDashboardData.originalData.forEach((row) => {
-        const val = row[col];
-        values.add(String(val !== undefined && val !== null && String(val).trim() !== '' ? val : 'Not Specified'));
-      });
-      options[col] = Array.from(values).sort();
-    });
-    return options;
-  }, [baseDashboardData]);
-
-  // Toggle options inside filters
-  const handleFilterToggle = (column: string, value: string) => {
-    setActiveFilters((prev) => {
-      const current = prev[column] || [];
-      const updated = current.includes(value)
-        ? current.filter((v) => v !== value)
-        : [...current, value];
-      return {
-        ...prev,
-        [column]: updated,
-      };
-    });
-  };
-
-  const resetFilters = () => {
-    if (!baseDashboardData) return;
-    const cleared: Record<string, string[]> = {};
-    baseDashboardData.mapping.categorical.forEach((col) => {
-      cleared[col] = [];
-    });
-    setActiveFilters(cleared);
-  };
-
-  const handlePrint = () => {
+  const handleExportPDF = () => {
+    // Print styled dashboard cleanly
     window.print();
   };
 
-  const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode);
-  };
-
-  const handleReset = () => {
-    setRawData([]);
-    setHeaders([]);
-    setBaseDashboardData(null);
-    setActiveFilters({});
-    setStep('upload');
-  };
-
-  const scrollToSection = (id: string) => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  };
-
-  const SkeletonLoader = () => (
-    <div className="space-y-8 animate-pulse my-8">
-      <div className="h-8 bg-slate-200 dark:bg-slate-800 rounded-lg w-1/4"></div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="h-32 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
-        <div className="h-32 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
-        <div className="h-32 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="h-72 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
-        <div className="h-72 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
-      </div>
-    </div>
-  );
-
   return (
-    <div className={`min-h-screen relative transition-colors duration-300 ${isDarkMode ? 'bg-[#090d16] text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
-      <InteractiveBackground isDarkMode={isDarkMode} themeColor={themeColor} showParticles={showParticles} />
-      
-      <div className="relative z-20 flex flex-col min-h-screen">
-      
-        {/* Top Navbar */}
-        <header className={`sticky top-0 z-50 backdrop-blur-md border-b transition-colors duration-300 ${
-          isDarkMode ? 'bg-[#090d16]/80 border-slate-800/80' : 'bg-white/80 border-slate-200'
-        } print:hidden`}>
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center shadow-md">
-                <BarChart3 className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <span className="font-extrabold tracking-tight text-sm md:text-base text-indigo-600 dark:text-indigo-400">
-                  ChurnInsights
-                </span>
-                <span className={`text-[10px] block font-medium ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
-                  Enterprise Analytics Engine v1.0
-                </span>
-              </div>
-            </div>
+    <div className={`min-h-screen font-sans antialiased transition-colors duration-300 ${
+      isDarkMode 
+        ? 'bg-slate-950 text-slate-100 selection:bg-violet-650 selection:text-white' 
+        : 'bg-slate-50 text-slate-900 selection:bg-violet-300 selection:text-slate-900'
+    }`}>
+      {/* Background glow meshes for dark theme */}
+      {isDarkMode && (
+        <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+          <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-indigo-900/10 rounded-full blur-3xl" />
+          <div className="absolute top-1/3 right-10 w-[400px] h-[400px] bg-violet-900/10 rounded-full blur-3xl" />
+          <div className="absolute bottom-10 left-10 w-[450px] h-[450px] bg-emerald-950/10 rounded-full blur-3xl" />
+        </div>
+      )}
 
-            <div className="flex items-center gap-3">
-              {/* Particle Toggle Button (Calm UI vs Interactive Effects) */}
-              <button
-                onClick={() => setShowParticles(!showParticles)}
-                className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                  showParticles 
-                    ? 'bg-indigo-600 border-indigo-500 text-white shadow-sm' 
-                    : isDarkMode 
-                    ? 'bg-slate-950 border-slate-800 hover:bg-slate-900 text-slate-400 hover:text-slate-350' 
-                    : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-650'
-                }`}
-                title="Toggle ambient background visual effects"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">{showParticles ? 'Effects: ON' : 'Effects: OFF'}</span>
-              </button>
+      {/* Global Wrapper */}
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        
+        {/* Navigation Screen Router */}
+        {!csvData ? (
+          // SCREEN 1: File Uploader
+          <UploadPanel onDataParsed={handleDataParsed} onLoadSample={handleLoadSample} />
+        ) : !isCalibrated ? (
+          // SCREEN 2: Column Mapper & Heuristic Calibration
+          <ColumnMapper
+            previewData={csvData}
+            onMappingConfirmed={handleMappingConfirmed}
+            onCancel={handleReload}
+          />
+        ) : (
+          // SCREEN 3: Active Analytics Dashboard
+          dataPipeline && (
+            <div className="space-y-8 animate-fadeIn print:space-y-6">
+              
+              {/* SECTION 1: Dashboard Professional Header */}
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-5 border-b border-slate-800/80 pb-6 print:pb-3 print:border-none">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 text-[10px] font-bold text-violet-400 bg-violet-950/60 border border-violet-850 rounded-full uppercase tracking-wider">
+                      Analytics Panel
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-semibold truncate max-w-[200px] flex items-center gap-1">
+                      <Database className="w-3 h-3 text-slate-600" /> {fileName}
+                    </span>
+                  </div>
+                  <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-200 to-violet-400 bg-clip-text text-transparent mt-2 print:text-slate-900 print:bg-none print:text-2xl">
+                    Marketing Funnel & Conversion Analytics
+                  </h1>
+                  <p className="text-xs text-slate-400 mt-1 print:hidden">
+                    Assess customer progression velocity, channel spend allocation, and growth bottlenecks.
+                  </p>
+                </div>
 
-              {step === 'dashboard' && (
-                <>
+                <div className="flex items-center gap-3 print:hidden">
                   <button
-                    onClick={handlePrint}
-                    className={`p-2 rounded-xl border transition-colors ${
-                      isDarkMode ? 'bg-slate-950 border-slate-800 hover:bg-slate-900 text-slate-350' : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-650'
-                    }`}
-                    title="Print Report"
+                    onClick={handleReload}
+                    className="px-4 py-2 text-xs font-semibold rounded-xl bg-slate-900 hover:bg-slate-850 text-slate-400 hover:text-white border border-slate-800 flex items-center gap-1.5 transition cursor-pointer"
                   >
-                    <Printer className="w-4 h-4" />
+                    <LogOut className="w-3.5 h-3.5" /> Reload New File
                   </button>
-                  <button
-                    onClick={handleReset}
-                    className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                      isDarkMode ? 'bg-slate-950 border-slate-800 hover:bg-slate-900 text-slate-350' : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-650'
-                    }`}
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    New Dataset
-                  </button>
-                </>
-              )}
+                </div>
+              </div>
 
-              <button
-                onClick={toggleTheme}
-                className={`p-2 rounded-xl border transition-colors ${
-                  isDarkMode ? 'bg-slate-950 border-slate-800 hover:bg-slate-900 text-yellow-400' : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-650'
-                }`}
-                aria-label="Toggle light/dark theme"
-              >
-                {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
-        </header>
-
-        {/* Main Area */}
-        <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
-          <AnimatePresence mode="wait">
-            {isLoading ? (
-              <motion.div
-                key="skeleton"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
-                <SkeletonLoader />
-              </motion.div>
-            ) : step === 'upload' && (
-              <motion.div
-                key="upload"
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -15 }}
-                transition={{ duration: 0.3 }}
-              >
-                <UploadPanel onCSVData={handleCSVText} isLoading={isLoading} themeColor={themeColor} />
+              {/* HERO METADATA CARD (Objectives & Stack info) */}
+              <div className="p-5 rounded-2xl bg-slate-900/60 backdrop-blur-md border border-slate-800/80 grid grid-cols-1 md:grid-cols-4 gap-6 print:hidden">
+                <div className="space-y-1 md:col-span-1 border-r border-slate-850 pr-4">
+                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-violet-400" /> Executive Goal
+                  </h4>
+                  <p className="text-xs text-slate-300 leading-relaxed font-medium">
+                    Map customer acquisition pipeline, isolate leaky stages, assess channels, and scale campaign profitability.
+                  </p>
+                </div>
                 
-                {/* Project Hero Details */}
-                <div className="max-w-4xl mx-auto mt-16 pt-12 border-t border-slate-200 dark:border-slate-850">
-                  <div className={`rounded-2xl p-6 border ${isDarkMode ? 'bg-slate-900/30 border-slate-800/60' : 'bg-white border-slate-200'} shadow-sm`}>
-                    <h3 className="text-base font-bold mb-3 text-slate-800 dark:text-slate-200">Enterprise Dashboard Overview</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-xs text-slate-500 dark:text-slate-400">
-                      <div>
-                        <p className="font-semibold text-slate-700 dark:text-slate-350 mb-1">Business Objectives:</p>
-                        <p className="leading-relaxed">
-                          Understand why subscribers churn, isolate service and billing risks, inspect average contract life expectancy, and compile concrete recommendations to minimize recurring revenue lost.
-                        </p>
-                        <p className="font-semibold text-slate-700 dark:text-slate-350 mt-4 mb-1">Technology Stack:</p>
-                        <p>
-                          React 18, Vite, TypeScript, Tailwind CSS, Recharts for charts, PapaParse client-side parser, Framer Motion transitions, and Lucide React icons.
-                        </p>
-                      </div>
-                      <div>
-                        <p className="font-semibold text-slate-700 dark:text-slate-350 mb-1">Project Portfolio Scope:</p>
-                        <p className="leading-relaxed">
-                          Built for Data Science and Analytics, showcasing clean frontend design, automated schemas mapping, real-time analytics aggregation, and high-fidelity insights computation.
-                        </p>
-                        <p className="font-semibold text-slate-700 dark:text-slate-350 mt-4 mb-1">Security & Deployment:</p>
-                        <p className="leading-relaxed">
-                          100% browser execution. No customer data leaves your computer or hits a server. Fully compatible with static hosts like GitHub Pages or Vercel.
-                        </p>
-                      </div>
-                    </div>
+                <div className="space-y-1 md:col-span-1 border-r border-slate-850 pr-4">
+                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                    <Database className="w-3 h-3 text-emerald-400" /> Data Source Profile
+                  </h4>
+                  <div className="text-[11px] text-slate-350 space-y-0.5">
+                    <div>Total Records: <strong>{dataPipeline.quality.totalRows}</strong></div>
+                    <div>Valid Leads Mapped: <strong>{dataPipeline.quality.validRows}</strong></div>
+                    <div>Duplicate Leads: <strong>{dataPipeline.quality.duplicateLeadsCount}</strong></div>
                   </div>
                 </div>
-              </motion.div>
-            )}
 
-            {step === 'mapping' && (
-              <motion.div
-                key="mapping"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
-                <ColumnMapper
-                  headers={headers}
-                  previewRows={rawData}
-                  detectedMapping={mapping}
-                  onConfirmMapping={handleConfirmMapping}
-                  onCancel={handleReset}
+                <div className="space-y-1 md:col-span-1 border-r border-slate-850 pr-4">
+                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                    <ShieldAlert className="w-3 h-3 text-rose-400" /> Data Quality Summary
+                  </h4>
+                  <p className="text-[11px] text-slate-400 leading-normal">
+                    Dropped {dataPipeline.quality.droppedRows} duplicate logs. Found {dataPipeline.quality.missingValuesCount} missing points. Normalizing casing and currency inputs automatically.
+                  </p>
+                </div>
+
+                <div className="space-y-1 md:col-span-1">
+                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                    <LineChart className="w-3 h-3 text-cyan-400" /> Analytics Engine Stack
+                  </h4>
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {['React', 'TypeScript', 'Tailwind', 'Recharts', 'PapaParse'].map(t => (
+                      <span key={t} className="px-2 py-0.5 rounded bg-slate-950 border border-slate-850 text-[10px] text-slate-500 font-semibold">{t}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 9: Interactive Segment Filters */}
+              <div className="print:hidden">
+                <DashboardFilters
+                  channels={dataPipeline.filterChoices.channels}
+                  campaigns={dataPipeline.filterChoices.campaigns}
+                  regions={dataPipeline.filterChoices.regions}
+                  devices={dataPipeline.filterChoices.devices}
+                  selectedChannels={selectedChannels}
+                  selectedCampaigns={selectedCampaigns}
+                  selectedRegions={selectedRegions}
+                  selectedDevices={selectedDevices}
+                  startDate={startDate}
+                  endDate={endDate}
+                  searchQuery={searchQuery}
+                  onFilterChange={handleFilterChange}
+                  onDateChange={handleDateChange}
+                  onSearchChange={setSearchQuery}
+                  onReset={handleResetFilters}
+                  onReload={handleReload}
+                  onExportPDF={handleExportPDF}
+                  onExportCSV={handleExportCSV}
+                  isDarkMode={isDarkMode}
+                  onToggleTheme={() => setIsDarkMode(!isDarkMode)}
                 />
-              </motion.div>
-            )}
+              </div>
 
-            {step === 'dashboard' && dashboardData && (
-              <motion.div
-                key="dashboard"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="space-y-8"
-              >
-                
-                {/* Dashboard Hero Header */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between pb-6 border-b border-slate-200 dark:border-slate-800/80 gap-4">
-                  <div>
-                    <div className="flex items-center gap-2 text-xs font-semibold text-indigo-650 dark:text-indigo-400">
-                      <Database className="w-3.5 h-3.5" />
-                      <span>Active File: {fileName}</span>
-                    </div>
-                    <h1 className="text-2.5xl font-extrabold tracking-tight text-slate-900 dark:text-slate-50 mt-1">
-                      Customer Retention & Churn Analytics
-                    </h1>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      Analyzed dataset with {baseDashboardData?.quality.totalRows.toLocaleString()} rows. Interactive filtering enabled.
-                    </p>
-                  </div>
-                  
-                  {/* Clean data quality display */}
-                  <div className={`p-3 rounded-xl border flex items-center gap-4 text-xs leading-none ${
-                    isDarkMode ? 'bg-slate-950/60 border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
-                  }`}>
-                    <div>
-                      <span className="text-slate-400 dark:text-slate-500 block text-[9px] uppercase font-bold tracking-wider">Data Quality</span>
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400 mt-1.5 block">
-                        {dashboardData.quality.validRows.toLocaleString()} / {dashboardData.quality.totalRows.toLocaleString()} rows
-                      </span>
-                    </div>
-                    <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-800" />
-                    <div>
-                      <span className="text-slate-400 dark:text-slate-500 block text-[9px] uppercase font-bold tracking-wider">Dropped / Nulls</span>
-                      <span className="font-semibold text-amber-600 dark:text-amber-500 mt-1.5 block">
-                        {dashboardData.quality.droppedRows} rows
-                      </span>
-                    </div>
+              {/* SECTION 2: Executive KPI Cards */}
+              <KPICards metrics={dataPipeline.kpis} />
+
+              {/* Double Column Grid: Funnel waterfall and Revenue Trend */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* SECTION 3: Marketing Funnel Visualization */}
+                <div className="space-y-3">
+                  <FunnelVisualization funnelData={dataPipeline.funnelData} />
+                  <div className="print:hidden">
+                    <InsightsPanel insights={dataPipeline.insights.funnelInsights} />
                   </div>
                 </div>
 
-                {/* Dashboard Layout: Sidebar + Main Content Grid */}
-                <div className="lg:grid lg:grid-cols-12 lg:gap-8 items-start">
-                  
-                  {/* LEFT STICKY SIDEBAR (Navigation & Segment Filters) */}
-                  <aside className="lg:col-span-3 space-y-6 sticky top-24 print:hidden mb-6 lg:mb-0">
-                    
-                    {/* Navigation jumping widget */}
-                    <div className={`rounded-2xl border p-4 ${
-                      isDarkMode ? 'bg-slate-900/30 border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
-                    }`}>
-                      <h4 className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2.5">
-                        Navigation Sections
-                      </h4>
-                      <nav className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-x-visible pb-2 lg:pb-0 scrollbar-none whitespace-nowrap">
-                        {[
-                          { id: 'overview', name: 'Executive Overview' },
-                          { id: 'segments', name: 'Tenure & Cost Analysis' },
-                          { id: 'financial', name: 'Segment Risk factors' },
-                          { id: 'insights', name: 'Strategic Playbooks' },
-                          { id: 'datatable', name: 'Customer Explorer' },
-                        ].map((section) => (
-                          <button
-                            key={section.id}
-                            onClick={() => scrollToSection(section.id)}
-                            className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left w-fit lg:w-full select-none cursor-pointer ${
-                              activeSection === section.id
-                                ? 'bg-indigo-50 border-indigo-100 text-indigo-650 dark:bg-indigo-500/10 dark:text-indigo-300 dark:border-indigo-950/20'
-                                : 'text-slate-500 hover:text-slate-800 dark:text-slate-450 dark:hover:text-slate-200'
-                            }`}
-                          >
-                            {section.name}
-                          </button>
-                        ))}
-                      </nav>
-                    </div>
-
-                    {/* Segment Filters Panel */}
-                    {Object.keys(filterOptions).length > 0 && (
-                      <div className={`p-4 rounded-2xl border ${
-                        isDarkMode ? 'bg-slate-900/30 border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
-                      }`}>
-                        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-850 pb-2.5 mb-3">
-                          <h3 className="text-xs font-bold text-slate-800 dark:text-slate-250 flex items-center gap-1.5">
-                            <Layers className="w-3.5 h-3.5 text-indigo-650 dark:text-indigo-400" />
-                            Segment Filters
-                          </h3>
-                          <button
-                            onClick={resetFilters}
-                            className="text-[10px] text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 font-bold uppercase transition-colors"
-                          >
-                            Clear
-                          </button>
-                        </div>
-                        
-                        <div className="space-y-4 max-h-[300px] overflow-y-auto pr-1">
-                          {Object.keys(filterOptions).map((col) => {
-                            const selected = activeFilters[col] || [];
-                            const displayName = col.replace(/([A-Z])/g, ' $1').trim();
-
-                            return (
-                              <div key={col} className="space-y-1.5">
-                                <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
-                                  {displayName}
-                                </span>
-                                <div className="flex flex-wrap gap-1">
-                                  {filterOptions[col].map((val) => {
-                                    const isChecked = selected.includes(val);
-                                    return (
-                                      <button
-                                        key={val}
-                                        onClick={() => handleFilterToggle(col, val)}
-                                        className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-colors ${
-                                          isChecked
-                                            ? 'bg-indigo-50 border-indigo-200 text-indigo-600 dark:bg-indigo-500/10 dark:border-indigo-500/35 dark:text-indigo-300'
-                                            : isDarkMode 
-                                            ? 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
-                                            : 'bg-slate-50 border-slate-200 text-slate-650 hover:bg-slate-100 hover:border-slate-350'
-                                        }`}
-                                      >
-                                        {val}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                  </aside>
-
-                  {/* RIGHT MAIN VIEW (KPIs, Charts, Recommendations, Data Table) */}
-                  <div className="lg:col-span-9 space-y-2">
-                    
-                    {/* KPI metrics row */}
-                    <KPICards data={dashboardData} />
-
-                    {/* Core Charts Section */}
-                    <Charts data={dashboardData} themeColor={themeColor} />
-
-                    {/* Operational Recommendations */}
-                    <InsightsPanel data={dashboardData} />
-
-                    {/* Customer record datatable */}
-                    <DataTable data={dashboardData} />
-
+                {/* SECTION 8: Revenue Analytics Trend */}
+                <div className="space-y-3">
+                  <RevenueAnalyticsChart dailyTrends={dataPipeline.dailyTrends} />
+                  <div className="print:hidden">
+                    <InsightsPanel insights={dataPipeline.insights.revenueInsights} />
                   </div>
+                </div>
+              </div>
 
+              {/* SECTION 6: Channel Performance */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <ChannelPerformanceChart channelsData={dataPipeline.channelsData} />
+                  <div className="print:hidden">
+                    <InsightsPanel insights={dataPipeline.insights.channelInsights} />
+                  </div>
                 </div>
 
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </main>
+                {/* SECTION 5: Campaign Performance */}
+                <div className="space-y-3">
+                  <CampaignPerformanceChart campaignsData={dataPipeline.campaignsData} />
+                  <div className="print:hidden">
+                    <InsightsPanel insights={dataPipeline.insights.campaignInsights} />
+                  </div>
+                </div>
+              </div>
 
-        <footer className="text-center py-8 text-xs text-slate-400 dark:text-slate-500 border-t border-slate-200 dark:border-slate-800/80 mt-auto print:hidden">
-          <p>© 2026 Churn Insights Dashboard. Built for Data Science & Analytics Internship Portfolio.</p>
-          <p className="mt-1">Works client-side in the browser. Safe for confidential datasets.</p>
-        </footer>
+              {/* SECTION 7: Segment / Behavior Breakdown (Device & Region) */}
+              <div className="space-y-3">
+                <CustomerBehaviorChart
+                  deviceData={dataPipeline.deviceBreakdown}
+                  regionData={dataPipeline.regionBreakdown}
+                />
+                <div className="print:hidden">
+                  <InsightsPanel insights={dataPipeline.insights.segmentInsights} />
+                </div>
+              </div>
+
+              {/* SECTION 11: Business Recommendations Playbook */}
+              <div className="print:hidden">
+                <RecommendationsPanel recommendations={dataPipeline.recommendations} />
+              </div>
+
+              {/* SECTION 12: Campaign database listing */}
+              <div className="print:hidden">
+                <DataTable rows={dataPipeline.filteredRows} headers={csvData.headers} />
+              </div>
+
+            </div>
+          )
+        )}
+
       </div>
     </div>
   );
-}
+};
+export default App;

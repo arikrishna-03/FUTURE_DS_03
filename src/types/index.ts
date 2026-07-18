@@ -1,104 +1,93 @@
-export type ThemeAccentColor = 'indigo' | 'blue' | 'emerald' | 'purple' | 'rose' | 'amber';
-
 export interface ColumnMapping {
-  customerId: string;
-  churn: string;
-  tenure: string;
-  monthlyCharges: string;
-  totalCharges: string;
-  categorical: string[]; // List of column names to treat as categorical attributes for segmentation
+  leadId: string;
+  date: string;
+  channel: string;
+  campaign: string;
+  device: string;
+  region: string;
+  spend: string;
+  revenue: string;
+  conversionFlag: string; // column mapping for conversion (0/1 or true/false)
+  
+  // Funnel settings
+  isMultiColumnFunnel: boolean;
+  funnelStage: string; // single column holding the stage name
+  multiColumnStages: string[]; // ordered list of boolean/binary columns
 }
 
-export type ChurnValueType = 'boolean' | 'string_yes_no' | 'numeric_0_1' | 'unknown';
+export interface CSVDataPreview {
+  headers: string[];
+  rows: Record<string, string>[];
+}
 
-export interface DataQualityReport {
+export interface FunnelStageData {
+  stageName: string;
+  count: number;
+  dropOffCount: number;
+  dropOffRate: number; // % drop off from previous stage
+  conversionRate: number; // % of initial traffic (first stage)
+  stageToStageConversion: number; // % conversion from previous stage
+}
+
+export interface ChannelPerformance {
+  channel: string;
+  visitors: number;
+  leads: number;
+  conversions: number;
+  conversionRate: number;
+  spend: number;
+  revenue: number;
+  cac: number;
+  roi: number;
+}
+
+export interface CampaignPerformance {
+  campaign: string;
+  visitors: number;
+  leads: number;
+  conversions: number;
+  conversionRate: number;
+  spend: number;
+  revenue: number;
+  cac: number;
+  roi: number;
+}
+
+export interface SegmentPerformance {
+  segmentValue: string;
+  visitors: number;
+  conversions: number;
+  conversionRate: number;
+}
+
+export interface DailyMetrics {
+  date: string;
+  visitors: number;
+  leads: number;
+  conversions: number;
+  spend: number;
+  revenue: number;
+}
+
+export interface DashboardMetrics {
+  totalVisitors: number;
+  totalLeads: number;
+  totalConversions: number;
+  overallConversionRate: number;
+  leadToCustomerRate: number;
+  totalSpend: number;
+  totalRevenue: number;
+  roi: number;
+  cac: number;
+  costPerConversion: number;
+  avgTimeInFunnel: number | null; // in days, if dates exist
+}
+
+export interface DataQualitySummary {
   totalRows: number;
   validRows: number;
   droppedRows: number;
-  missingValuesCount: Record<string, number>;
-  churnValueInterpretation: {
-    detectedType: ChurnValueType;
-    positiveValues: string[];
-    negativeValues: string[];
-  };
-}
-
-export interface CustomerRecord {
-  [key: string]: any;
-}
-
-export interface MetricCardData {
-  title: string;
-  value: string | number;
-  trend?: {
-    value: number;
-    isPositive: boolean;
-  };
-  iconName: string;
-  description: string;
-  sparklineData?: number[];
-}
-
-export interface ChurnRateSegment {
-  name: string;
-  churnRate: number;
-  total: number;
-  churnCount: number;
-  retainedCount: number;
-  avgMonthlyCharges: number;
-}
-
-export interface CategoricalAnalysis {
-  columnName: string;
-  displayName: string;
-  segments: ChurnRateSegment[];
-}
-
-export interface DashboardData {
-  originalData: CustomerRecord[];
-  filteredData: CustomerRecord[];
-  mapping: ColumnMapping;
-  quality: DataQualityReport;
-  summary: {
-    totalCustomers: number;
-    activeCustomers: number;
-    churnedCustomers: number;
-    churnRate: number;
-    retentionRate: number;
-    avgTenure: number;
-    avgMonthlyCharges: number;
-    avgTotalCharges: number;
-    avgRevenuePerCustomer: number;
-    customerLifetimeValue: number;
-    totalMonthlyRevenueLost: number;
-  };
-  categoricalAnalysis: CategoricalAnalysis[];
-  tenureVsChurn: {
-    tenureBin: string;
-    churnRate: number;
-    total: number;
-    churnCount: number;
-  }[];
-  monthlyChargesVsChurn: {
-    chargeBin: string;
-    churnRate: number;
-    total: number;
-    churnCount: number;
-  }[];
-}
-
-export interface InsightItem {
-  id: string;
-  title: string;
-  text: string;
-  type: 'info' | 'warning' | 'success';
-  metric?: string;
-}
-
-export interface RecommendationItem {
-  id: string;
-  title: string;
-  text: string;
-  impact: 'High' | 'Medium' | 'Low';
-  actionLabel: string;
+  missingValuesCount: number;
+  duplicateLeadsCount: number;
+  interpretationNotes: string[];
 }

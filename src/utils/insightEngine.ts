@@ -1,334 +1,392 @@
-import { DashboardData, InsightItem, RecommendationItem } from '../types';
+import type { FunnelStageData, ChannelPerformance, CampaignPerformance, DashboardMetrics, SegmentPerformance } from '../types';
 
-/**
- * Dynamically computes plain-language insights from parsed data.
- */
-export const generateInsights = (data: DashboardData): InsightItem[] => {
-  const insights: InsightItem[] = [];
-  const { summary, categoricalAnalysis, tenureVsChurn, monthlyChargesVsChurn } = data;
+export interface DynamicInsight {
+  id: string;
+  text: string;
+  type: 'success' | 'warning' | 'info';
+}
 
-  if (summary.totalCustomers === 0) return insights;
+export interface BusinessRecommendation {
+  id: string;
+  title: string;
+  description: string;
+  impact: 'High' | 'Medium' | 'Low';
+  effort: 'High' | 'Medium' | 'Low';
+  category: 'Funnel' | 'Channels' | 'Campaigns' | 'Device' | 'Region';
+}
 
-  // 1. Overall Churn Insight
+// Generate Funnel specific insights
+export const getFunnelInsights = (funnelData: FunnelStageData[], kpis: DashboardMetrics): DynamicInsight[] => {
+  const insights: DynamicInsight[] = [];
+  if (funnelData.length < 2) return [];
+
+  // Find biggest drop-off stage
+  let maxDropOffStage = funnelData[1];
+  let maxDropOffRate = funnelData[1].dropOffRate;
+
+  for (let i = 2; i < funnelData.length; i++) {
+    if (funnelData[i].dropOffRate > maxDropOffRate) {
+      maxDropOffRate = funnelData[i].dropOffRate;
+      maxDropOffStage = funnelData[i];
+    }
+  }
+
   insights.push({
-    id: 'overall_churn',
-    title: 'Customer Churn Baseline',
-    text: `The organization has a churn rate of ${summary.churnRate.toFixed(1)}% (${summary.churnedCustomers.toLocaleString()} churned customers), with an active customer base of ${summary.activeCustomers.toLocaleString()} (${summary.retentionRate.toFixed(1)}% retention rate).`,
-    type: summary.churnRate > 25 ? 'warning' : summary.churnRate > 15 ? 'info' : 'success',
-    metric: `${summary.churnRate.toFixed(1)}% Churn`
+    id: 'funnel_max_dropoff',
+    text: `The largest drop-off in your customer journey occurs at the "${maxDropOffStage.stageName}" stage, where ${maxDropOffRate.toFixed(1)}% of users abandon the funnel.`,
+    type: maxDropOffRate > 50 ? 'warning' : 'info'
   });
 
-  // 2. Monthly Revenue Lost Insight
-  if (summary.totalMonthlyRevenueLost > 0) {
+  insights.push({
+    id: 'funnel_overall_conv',
+    text: `Your overall funnel conversion rate is ${kpis.overallConversionRate.toFixed(2)}%, meaning that out of every 100 visitors, approximately ${Math.round(kpis.overallConversionRate)} become customers.`,
+    type: kpis.overallConversionRate > 3 ? 'success' : 'warning'
+  });
+
+  // Calculate Lead-to-Customer conversion
+  if (funnelData.length > 2) {
+    const leadStageName = funnelData[1].stageName;
     insights.push({
-      id: 'revenue_at_risk',
-      title: 'Revenue Impact',
-      text: `Lost customer accounts have resulted in an estimated monthly revenue leak of $${summary.totalMonthlyRevenueLost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}. This directly reduces Monthly Recurring Revenue (MRR) by that amount.`,
-      type: 'warning',
-      metric: `$${summary.totalMonthlyRevenueLost.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo Lost`
-    });
-  }
-
-  // 3. Analyze Contract type (or similar Plan/Contract column)
-  const contractCol = categoricalAnalysis.find(c => 
-    ['contract', 'plantype', 'plan', 'term'].includes(c.columnName.toLowerCase())
-  );
-  if (contractCol && contractCol.segments.length > 0) {
-    // Find highest churn contract
-    const highestChurnContract = [...contractCol.segments].sort((a, b) => b.churnRate - a.churnRate)[0];
-    const lowestChurnContract = [...contractCol.segments].sort((a, b) => a.churnRate - b.churnRate)[0];
-    
-    if (highestChurnContract.churnRate > lowestChurnContract.churnRate + 10) {
-      insights.push({
-        id: 'contract_impact',
-        title: 'Contract Terms Correlation',
-        text: `Customers on "${highestChurnContract.name}" options churn at an elevated rate of ${highestChurnContract.churnRate.toFixed(1)}%, compared to just ${lowestChurnContract.churnRate.toFixed(1)}% for those on "${lowestChurnContract.name}" agreements.`,
-        type: 'warning',
-        metric: `${(highestChurnContract.churnRate - lowestChurnContract.churnRate).toFixed(0)}% Gap`
-      });
-    }
-  }
-
-  // 4. Analyze Internet Service (or similar Tech service column)
-  const internetCol = categoricalAnalysis.find(c => 
-    ['internetservice', 'service', 'internet', 'connectiontype'].includes(c.columnName.toLowerCase())
-  );
-  if (internetCol && internetCol.segments.length > 0) {
-    const fiberOptic = internetCol.segments.find(s => s.name.toLowerCase().includes('fiber'));
-    const dsl = internetCol.segments.find(s => s.name.toLowerCase().includes('dsl') || s.name.toLowerCase().includes('cable'));
-    
-    if (fiberOptic && dsl && fiberOptic.churnRate > dsl.churnRate + 5) {
-      insights.push({
-        id: 'service_impact',
-        title: 'Service Type Variance',
-        text: `Fiber Optic customers experience a churn rate of ${fiberOptic.churnRate.toFixed(1)}%, significantly higher than DSL/Cable customers at ${dsl.churnRate.toFixed(1)}%, suggesting potential pricing friction or quality issues.`,
-        type: 'warning',
-        metric: `${fiberOptic.churnRate.toFixed(0)}% Fiber Churn`
-      });
-    }
-  }
-
-  // 5. Analyze Tenure (Short-term vs Long-term)
-  const shortTermCohort = tenureVsChurn[0]; // 0-6 months
-  const longTermCohort = tenureVsChurn[tenureVsChurn.length - 1]; // 5+ years or similar
-
-  if (shortTermCohort && longTermCohort && shortTermCohort.churnRate > longTermCohort.churnRate + 15) {
-    insights.push({
-      id: 'tenure_impact',
-      title: 'Tenure Cohort Dynamics',
-      text: `Early-stage retention is critical: customers in their first 6 months have a churn rate of ${shortTermCohort.churnRate.toFixed(1)}%, which drops to ${longTermCohort.churnRate.toFixed(1)}% for accounts active for over 5 years.`,
-      type: 'warning',
-      metric: `${shortTermCohort.churnRate.toFixed(0)}% Early Churn`
-    });
-  }
-
-  // 6. Analyze Pricing (Monthly charges vs Churn)
-  const highChargeCohort = monthlyChargesVsChurn.find(c => c.chargeBin.includes('Premium') || c.chargeBin.includes('High'));
-  const lowChargeCohort = monthlyChargesVsChurn[0]; // Low charge
-
-  if (highChargeCohort && lowChargeCohort && highChargeCohort.churnRate > lowChargeCohort.churnRate + 5) {
-    insights.push({
-      id: 'price_sensitivity',
-      title: 'Price Sensitivity Indicator',
-      text: `Higher bill amounts correlate with churn: premium/high-spend tiers churn at ${highChargeCohort.churnRate.toFixed(1)}%, whereas low-spend accounts (<$30/mo) churn at ${lowChargeCohort.churnRate.toFixed(1)}%.`,
-      type: 'info',
-      metric: `Spend Sensitivity`
-    });
-  }
-
-  // General fallback segment analysis if we don't have contract/internet headers
-  if (insights.length < 4) {
-    categoricalAnalysis.forEach((cat) => {
-      if (insights.length >= 6) return;
-      const sorted = [...cat.segments].sort((a, b) => b.churnRate - a.churnRate);
-      if (sorted.length >= 2 && sorted[0].churnRate > sorted[sorted.length - 1].churnRate + 10) {
-        insights.push({
-          id: `segment_insight_${cat.columnName}`,
-          title: `Segment Disparity: ${cat.displayName}`,
-          text: `Significant churn variation detected in ${cat.displayName}: "${sorted[0].name}" segment has a churn rate of ${sorted[0].churnRate.toFixed(1)}%, compared to "${sorted[sorted.length - 1].name}" at ${sorted[sorted.length - 1].churnRate.toFixed(1)}%.`,
-          type: 'info'
-        });
-      }
+      id: 'funnel_lead_cust',
+      text: `Your "${leadStageName}" to customer conversion rate is ${kpis.leadToCustomerRate.toFixed(1)}%. Improving this middle-of-funnel velocity represents a major growth opportunity.`,
+      type: kpis.leadToCustomerRate < 10 ? 'warning' : 'success'
     });
   }
 
   return insights;
 };
 
-/**
- * Dynamically computes at least 10 customized business recommendations based on the high-risk factors.
- */
-export const generateRecommendations = (data: DashboardData): RecommendationItem[] => {
-  const recommendations: RecommendationItem[] = [];
-  const { summary, categoricalAnalysis, tenureVsChurn } = data;
+// Generate Channel specific insights
+export const getChannelInsights = (channels: ChannelPerformance[]): DynamicInsight[] => {
+  const insights: DynamicInsight[] = [];
+  if (channels.length === 0) return [];
 
-  if (summary.totalCustomers === 0) return recommendations;
+  // 1. Highest ROI channel
+  const validRoiChannels = channels.filter(c => c.spend > 0);
+  if (validRoiChannels.length > 0) {
+    const highestRoi = [...validRoiChannels].sort((a, b) => b.roi - a.roi)[0];
+    if (highestRoi.roi > 0) {
+      insights.push({
+        id: 'channel_high_roi',
+        text: `"${highestRoi.channel}" is your most profitable channel, achieving an outstanding ROI of ${highestRoi.roi.toFixed(1)}%.`,
+        type: 'success'
+      });
+    }
 
-  // Let's identify the highest-risk categorical segment
-  let topRiskCategory = '';
-  let topRiskSegment = '';
-  let highestRate = 0;
+    // 2. Highest CAC channel
+    const highestCac = [...validRoiChannels].sort((a, b) => b.cac - a.cac)[0];
+    if (highestCac.cac > 0) {
+      insights.push({
+        id: 'channel_high_cac',
+        text: `"${highestCac.channel}" has your highest Customer Acquisition Cost (CAC) at $${highestCac.cac.toFixed(2)}. Review this channel's targeting or cost controls.`,
+        type: 'warning'
+      });
+    }
+  }
 
-  categoricalAnalysis.forEach((cat) => {
-    cat.segments.forEach((seg) => {
-      // Only care about segments representing at least 3% of the dataset to avoid micro-outliers
-      if (seg.total > summary.totalCustomers * 0.03 && seg.churnRate > highestRate) {
-        highestRate = seg.churnRate;
-        topRiskCategory = cat.displayName;
-        topRiskSegment = seg.name;
+  // 3. Highest converting channel by volume / rate
+  const highestConvRate = [...channels].sort((a, b) => b.conversionRate - a.conversionRate)[0];
+  if (highestConvRate && highestConvRate.conversionRate > 0) {
+    insights.push({
+      id: 'channel_high_conv',
+      text: `"${highestConvRate.channel}" delivers the highest lead quality, with a conversion rate of ${highestConvRate.conversionRate.toFixed(1)}%.`,
+      type: 'success'
+    });
+  }
+
+  return insights;
+};
+
+// Generate Campaign insights
+export const getCampaignInsights = (campaigns: CampaignPerformance[]): DynamicInsight[] => {
+  const insights: DynamicInsight[] = [];
+  const activeCampaigns = campaigns.filter(c => c.visitors > 5);
+  if (activeCampaigns.length === 0) return [];
+
+  // Top revenue campaign
+  const topRev = [...activeCampaigns].sort((a, b) => b.revenue - a.revenue)[0];
+  if (topRev && topRev.revenue > 0) {
+    insights.push({
+      id: 'camp_top_revenue',
+      text: `Campaign "${topRev.campaign}" generated the highest revenue ($${topRev.revenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}), contributing significantly to sales.`,
+      type: 'success'
+    });
+  }
+
+  // Lowest performing campaign
+  const lowConv = [...activeCampaigns].sort((a, b) => a.conversionRate - b.conversionRate)[0];
+  if (lowConv && lowConv.visitors > 20) {
+    insights.push({
+      id: 'camp_low_conv',
+      text: `Campaign "${lowConv.campaign}" has the lowest conversion rate (${lowConv.conversionRate.toFixed(2)}%) despite receiving ${lowConv.visitors} visitors. Consider optimizing its landing page.`,
+      type: 'warning'
+    });
+  }
+
+  return insights;
+};
+
+// Generate Segment insights (device, region)
+export const getSegmentInsights = (
+  devices: SegmentPerformance[],
+  regions: SegmentPerformance[]
+): DynamicInsight[] => {
+  const insights: DynamicInsight[] = [];
+
+  // Device comparison
+  if (devices.length >= 2) {
+    const sorted = [...devices].sort((a, b) => b.conversionRate - a.conversionRate);
+    const top = sorted[0];
+    const bottom = sorted[sorted.length - 1];
+    const ratio = bottom.conversionRate > 0 ? (top.conversionRate / bottom.conversionRate).toFixed(1) : '0';
+    
+    insights.push({
+      id: 'segment_device_gap',
+      text: `Users on "${top.segmentValue}" convert ${ratio}x better than users on "${bottom.segmentValue}" (${top.conversionRate.toFixed(1)}% vs. ${bottom.conversionRate.toFixed(1)}%).`,
+      type: parseFloat(ratio) > 1.5 ? 'warning' : 'info'
+    });
+  }
+
+  // Top Region
+  if (regions.length > 0) {
+    const topRegion = [...regions].sort((a, b) => b.conversionRate - a.conversionRate)[0];
+    insights.push({
+      id: 'segment_top_region',
+      text: `"${topRegion.segmentValue}" is the highest-converting region with a ${topRegion.conversionRate.toFixed(1)}% conversion rate.`,
+      type: 'success'
+    });
+  }
+
+  return insights;
+};
+
+// Generate Revenue Insights
+export const getRevenueInsights = (kpis: DashboardMetrics): DynamicInsight[] => {
+  const insights: DynamicInsight[] = [];
+  
+  if (kpis.totalRevenue > 0) {
+    const profit = kpis.totalRevenue - kpis.totalSpend;
+    insights.push({
+      id: 'rev_summary',
+      text: `Net Profit from campaign spend stands at $${profit.toLocaleString(undefined, { maximumFractionDigits: 0 })} with an overall marketing ROI of ${kpis.roi.toFixed(1)}%.`,
+      type: kpis.roi > 0 ? 'success' : 'warning'
+    });
+  }
+
+  if (kpis.cac > 0) {
+    insights.push({
+      id: 'cac_summary',
+      text: `The average Customer Acquisition Cost (CAC) across all campaigns is $${kpis.cac.toFixed(2)}. Make sure this is lower than your average Customer Lifetime Value (LTV).`,
+      type: 'info'
+    });
+  }
+
+  return insights;
+};
+
+// Generate at least 10 Actionable Business Recommendations based on data
+export const generateRecommendations = (
+  funnelData: FunnelStageData[],
+  channels: ChannelPerformance[],
+  campaigns: CampaignPerformance[],
+  devices: SegmentPerformance[],
+  regions: SegmentPerformance[],
+  kpis: DashboardMetrics
+): BusinessRecommendation[] => {
+  const recommendations: BusinessRecommendation[] = [];
+
+  // 1. Analyze Funnel Dropoffs to give 3-4 funnel recommendations
+  if (funnelData.length >= 2) {
+    // Find the single worst drop-off
+    const sortedStages = [...funnelData].slice(1).sort((a, b) => b.dropOffRate - a.dropOffRate);
+    const worstStage = sortedStages[0];
+
+    // Check where the worst stage lies
+    const idx = funnelData.findIndex(s => s.stageName === worstStage.stageName);
+    
+    // Top funnel drop-off (Visitors -> Leads)
+    recommendations.push({
+      id: 'rec_top_funnel',
+      title: 'Optimize Landing Page Content and Form Fields',
+      description: `Your top of funnel has drop-off. Simplify signup pages, reduce the number of form fields, and load-test your site speed. Target: Increase Traffic → Lead rate.`,
+      impact: idx === 1 ? 'High' : 'Medium',
+      effort: 'Low',
+      category: 'Funnel'
+    });
+
+    // Middle funnel drop-off (Leads -> Qualified Leads / Opportunities)
+    recommendations.push({
+      id: 'rec_mid_funnel',
+      title: 'Implement Automated Lead Nurturing Email Sequence',
+      description: `With a ${worstStage.dropOffRate.toFixed(1)}% drop-off at stage "${worstStage.stageName}", prospects are going cold. Build auto-drip email campaigns with case studies and interactive content.`,
+      impact: idx > 1 && idx < funnelData.length - 1 ? 'High' : 'Medium',
+      effort: 'Medium',
+      category: 'Funnel'
+    });
+
+    // Bottom funnel drop-off (Opportunities -> Customers)
+    recommendations.push({
+      id: 'rec_bottom_funnel',
+      title: 'Streamline Checkout Flow and Add Trust Signals',
+      description: `Prospects are dropping off just before purchase. Add testimonials, money-back guarantees, clear pricing summaries, and alternative payment options (Apple Pay/Stripe).`,
+      impact: idx === funnelData.length - 1 ? 'High' : 'Medium',
+      effort: 'Low',
+      category: 'Funnel'
+    });
+
+    // General Funnel monitoring
+    recommendations.push({
+      id: 'rec_funnel_monitor',
+      title: 'Establish a Weekly Funnel Velocity Review',
+      description: 'Create automated alerts for drop-off spikes in specific stages, allowing your growth teams to run rapid A/B testing on leakage points.',
+      impact: 'Medium',
+      effort: 'Low',
+      category: 'Funnel'
+    });
+  }
+
+  // 2. Channel Recommendations (2-3)
+  if (channels.length > 0) {
+    const validSpend = channels.filter(c => c.spend > 0);
+    if (validSpend.length > 0) {
+      const highestRoi = [...validSpend].sort((a, b) => b.roi - a.roi)[0];
+      const lowestRoi = [...validSpend].sort((a, b) => a.roi - b.roi)[0];
+      
+      if (highestRoi.roi > lowestRoi.roi + 50) {
+        recommendations.push({
+          id: 'rec_budget_realloc',
+          title: `Reallocate Budget from "${lowestRoi.channel}" to "${highestRoi.channel}"`,
+          description: `Optimize ad spend by shifting budget from low ROI ${lowestRoi.channel} (${lowestRoi.roi.toFixed(1)}% ROI) to high-performing ${highestRoi.channel} (${highestRoi.roi.toFixed(1)}% ROI).`,
+          impact: 'High',
+          effort: 'Low',
+          category: 'Channels'
+        });
       }
-    });
-  });
 
-  // 1. High Churn Alert Recommendation
-  if (highestRate > 25) {
+      const lowestCac = [...validSpend].sort((a, b) => a.cac - b.cac)[0];
+      recommendations.push({
+        id: 'rec_channel_scaling',
+        title: `Scale CAC-efficient Campaigns on "${lowestCac.channel}"`,
+        description: `"${lowestCac.channel}" has the lowest Customer Acquisition Cost at $${lowestCac.cac.toFixed(2)}. Invest in increasing impression share on this channel to drive cheaper customer acquisition.`,
+        impact: 'High',
+        effort: 'Medium',
+        category: 'Channels'
+      });
+    }
+
+    // Add organic SEO recommendation if direct or organic search is high volume but low conversion
     recommendations.push({
-      id: 'rec_risk_outreach',
-      title: `Prioritize At-Risk Segment: ${topRiskSegment}`,
-      text: `Launch immediate targeted customer success campaigns to customers in the "${topRiskSegment}" segment (${topRiskCategory}), which currently shows a critical churn rate of ${highestRate.toFixed(1)}%.`,
-      impact: 'High',
-      actionLabel: 'Initiate Outreach'
-    });
-  } else {
-    recommendations.push({
-      id: 'rec_risk_outreach_fallback',
-      title: 'Proactive High-Value Customer Outreach',
-      text: 'Establish a monthly health check cadence for top-tier accounts (highest 15% monthly spend) to secure feedback before renewal periods.',
-      impact: 'High',
-      actionLabel: 'Set Check Cadence'
+      id: 'rec_organic_content',
+      title: 'Invest in High-Intent SEO Content & Organic Marketing',
+      description: `Organic channels capture top-of-funnel intent. Build comparison keywords and how-to guides to naturally drive high-intent visitors and lower your blended CAC (currently $${kpis.cac.toFixed(2)}).`,
+      impact: 'Medium',
+      effort: 'High',
+      category: 'Channels'
     });
   }
 
-  // 2. Contract Terms Recommendation (Contract / Billing style)
-  const contractCol = categoricalAnalysis.find(c => 
-    ['contract', 'plantype', 'plan', 'term'].includes(c.columnName.toLowerCase())
-  );
-  if (contractCol) {
-    const shortTerm = contractCol.segments.find(s => s.name.toLowerCase().includes('month'));
+  // 3. Device Recommendations (1-2)
+  if (devices.length > 0) {
+    const mobileSegment = devices.find(d => d.segmentValue.toLowerCase() === 'mobile');
+    const desktopSegment = devices.find(d => d.segmentValue.toLowerCase() === 'desktop');
     
-    if (shortTerm && shortTerm.churnRate > 20) {
+    if (mobileSegment && desktopSegment && desktopSegment.conversionRate > mobileSegment.conversionRate * 1.3) {
       recommendations.push({
-        id: 'rec_contract_discount',
-        title: 'Incentivize Long-Term Contract Sign-ups',
-        text: `Offer a 15-20% discount on 1-year or 2-year subscriptions to customers currently on "${shortTerm.name}" plans, as annual contracts exhibit significantly stronger retention.`,
+        id: 'rec_mobile_optimize',
+        title: 'Overhaul Mobile Interface and Touch-Target Sizes',
+        description: `Mobile conversion (${mobileSegment.conversionRate.toFixed(2)}%) lags significantly behind Desktop (${desktopSegment.conversionRate.toFixed(2)}%). Design mobile-first forms, improve loading speed, and optimize responsive menus.`,
         impact: 'High',
-        actionLabel: 'Create Promo Code'
+        effort: 'Medium',
+        category: 'Device'
       });
     } else {
       recommendations.push({
-        id: 'rec_contract_discount_generic',
-        title: 'Migrate Month-to-Month Contracts',
-        text: 'Deploy an automated email workflow offering a free month of service to monthly subscribers who commit to a 12-month contract.',
-        impact: 'High',
-        actionLabel: 'Deploy Campaign'
-      });
-    }
-  } else {
-    recommendations.push({
-      id: 'rec_migration',
-      title: 'Encourage Multi-Month Billing Commitments',
-      text: 'Implement a billing page layout that defaults to quarterly or annual subscriptions rather than monthly options.',
-      impact: 'Medium',
-      actionLabel: 'Update Pricing UI'
-    });
-  }
-
-  // 3. Early Tenure / Onboarding
-  const earlyTenure = tenureVsChurn[0]; // 0-6 months
-  if (earlyTenure && earlyTenure.churnRate > 25) {
-    recommendations.push({
-      id: 'rec_onboarding',
-      title: 'Enhance Early Customer Onboarding Flow',
-      text: `With early churn at ${earlyTenure.churnRate.toFixed(1)}%, implement a 14-day product training program, quick-start guides, and automated checklist emails to increase feature adoption.`,
-      impact: 'High',
-      actionLabel: 'Audit Onboarding'
-    });
-  } else {
-    recommendations.push({
-      id: 'rec_onboarding_generic',
-      title: 'Introduce a Welcome Concierge Call',
-      text: 'Have customer support reach out personally within the first 7 days to all new sign-ups to resolve initial friction.',
-      impact: 'Medium',
-      actionLabel: 'Train Support Team'
-    });
-  }
-
-  // 4. Internet Service / Tech Support Quality
-  const internetCol = categoricalAnalysis.find(c => 
-    ['internetservice', 'service', 'internet', 'connectiontype'].includes(c.columnName.toLowerCase())
-  );
-  if (internetCol) {
-    const fiber = internetCol.segments.find(s => s.name.toLowerCase().includes('fiber'));
-    if (fiber && fiber.churnRate > 30) {
-      recommendations.push({
-        id: 'rec_tech_support',
-        title: 'Establish Fiber Quality Assurance Checks',
-        text: `Fiber optic accounts churn at ${fiber.churnRate.toFixed(1)}%. Conduct service quality diagnostics, dispatch technical checkups, and review latency thresholds to ensure speed reliability.`,
-        impact: 'High',
-        actionLabel: 'Launch Tech Audit'
-      });
-    } else {
-      recommendations.push({
-        id: 'rec_tech_support_generic',
-        title: 'Deploy Automated Network Health Scans',
-        text: 'Proactively monitor line connections and auto-generate discount tokens for accounts experiencing intermittent dropouts.',
+        id: 'rec_device_uniformity',
+        title: 'Maintain Seamless Cross-Device Session Handoff',
+        description: 'Provide features like "Save cart for later" or email links to continue sessions from mobile to desktop without restarting the funnel.',
         impact: 'Medium',
-        actionLabel: 'Implement Monitors'
+        effort: 'Medium',
+        category: 'Device'
       });
     }
-  } else {
-    recommendations.push({
-      id: 'rec_product_check',
-      title: 'Conduct Quality of Service (QoS) Reviews',
-      text: 'Establish a feedback channel after customer support cases to gather detailed product satisfaction scores.',
-      impact: 'Medium',
-      actionLabel: 'Deploy NPS Survey'
-    });
   }
 
-  // 5. Payment Methods Friction
-  const paymentCol = categoricalAnalysis.find(c => 
-    ['paymentmethod', 'payment', 'billingtype'].includes(c.columnName.toLowerCase())
-  );
-  if (paymentCol) {
-    const manualPay = paymentCol.segments.find(s => s.name.toLowerCase().includes('check') || s.name.toLowerCase().includes('mail'));
-    const autoPay = paymentCol.segments.find(s => s.name.toLowerCase().includes('auto') || s.name.toLowerCase().includes('bank') || s.name.toLowerCase().includes('credit'));
-    
-    if (manualPay && autoPay && manualPay.churnRate > autoPay.churnRate + 10) {
+  // 4. Region Recommendations (1-2)
+  if (regions.length > 0) {
+    const topReg = [...regions].sort((a, b) => b.conversionRate - a.conversionRate)[0];
+    const bottomReg = [...regions].sort((a, b) => a.conversionRate - b.conversionRate)[0];
+
+    if (regions.length >= 2) {
       recommendations.push({
-        id: 'rec_payment_method',
-        title: 'Promote Automatic Auto-Pay Enrollment',
-        text: `Customers using manual payment options churn at ${manualPay.churnRate.toFixed(1)}% compared to auto-pay accounts. Incentivize auto-pay setup with a one-time bill credit of $5.`,
+        id: 'rec_region_targeting',
+        title: `Localize Marketing Assets for "${bottomReg.segmentValue}"`,
+        description: `Conversion in "${bottomReg.segmentValue}" is low (${bottomReg.conversionRate.toFixed(1)}%). Implement localized currencies, local trust banners, and region-specific copywriting to match the ${topReg.segmentValue} benchmark (${topReg.conversionRate.toFixed(1)}%).`,
         impact: 'Medium',
-        actionLabel: 'Setup Promo Action'
-      });
-    } else {
-      recommendations.push({
-        id: 'rec_payment_method_generic',
-        title: 'Simplify Payment Options Integration',
-        text: 'Support modern checkout interfaces like Apple Pay, Google Pay, and Stripe Link to reduce checkout friction.',
-        impact: 'Medium',
-        actionLabel: 'Integrate Stripe'
+        effort: 'Medium',
+        category: 'Region'
       });
     }
-  } else {
-    recommendations.push({
-      id: 'rec_billing_friction',
-      title: 'Minimize Billing and Invoice Friction',
-      text: 'Send pre-expiry notifications for credit cards 30 days in advance to prevent churn caused by accidental payment declines.',
-      impact: 'Medium',
-      actionLabel: 'Enable Reminders'
-    });
   }
 
-  // Fill in other generic high-value recommendations to ensure we hit at least 10 items
-  recommendations.push(
-    {
-      id: 'rec_loyalty',
-      title: 'Launch a Customer Loyalty Rewards Program',
-      text: 'Implement point accruals based on account tenure that can be redeemed for account upgrades or partner gift cards.',
-      impact: 'Medium',
-      actionLabel: 'Define Program'
-    },
-    {
-      id: 'rec_predictive_ai',
-      title: 'Deploy Machine Learning Churn Predictors',
-      text: 'Utilize automated ML pipelines (such as XGBoost or Random Forests) to flag active customers showing signs of imminent departure based on login activity and support volume.',
-      impact: 'High',
-      actionLabel: 'Initiate ML Model'
-    },
-    {
-      id: 'rec_personalized_offers',
-      title: 'Implement Personalized Saving Plan Options',
-      text: 'When a customer visits the cancellation page, dynamically display custom tier downgrades rather than binary cancel/keep options.',
-      impact: 'High',
-      actionLabel: 'Deploy Cancel Flow'
-    },
-    {
-      id: 'rec_support_response',
-      title: 'Optimize Support Ticket SLA Response Times',
-      text: 'Decrease ticket resolution response times below 2 hours for clients with Monthly Charges exceeding $80 to prevent frustration-driven churn.',
-      impact: 'Medium',
-      actionLabel: 'Adjust SLAs'
-    },
-    {
-      id: 'rec_bundle',
-      title: 'Promote Value-Added Services Bundles',
-      text: 'Cross-sell security packages or premium add-ons to single-service users. Customers with 3+ bundled services show 4x lower churn.',
-      impact: 'Medium',
-      actionLabel: 'Review Add-Ons'
+  // 5. Campaign Recommendations (1)
+  if (campaigns.length > 0) {
+    const lowPerfCampaign = [...campaigns].filter(c => c.visitors > 15).sort((a, b) => a.conversionRate - b.conversionRate)[0];
+    if (lowPerfCampaign) {
+      recommendations.push({
+        id: 'rec_campaign_retarget',
+        title: `Pause or Re-target Underperforming Campaign: "${lowPerfCampaign.campaign}"`,
+        description: `This campaign is underperforming at a ${lowPerfCampaign.conversionRate.toFixed(2)}% conversion rate. Shift the ad set budget to lookalike audiences or retarget prior visitors instead of broad cold targeting.`,
+        impact: 'Medium',
+        effort: 'Low',
+        category: 'Campaigns'
+      });
     }
-  );
+  }
 
-  // Guarantee exactly/at-least 10 recommendations
+  // Fallback if list is short, ensuring we always have at least 10 recommendations!
   while (recommendations.length < 10) {
-    recommendations.push({
-      id: `rec_extra_${recommendations.length}`,
-      title: 'Conduct Cohort Loss Audits',
-      text: 'Perform exit interviews with churned accounts to track key churn drivers (e.g. competitor pricing, technical difficulties).',
-      impact: 'Low',
-      actionLabel: 'Launch Audits'
-    });
+    const id = `rec_fallback_${recommendations.length}`;
+    const fallbacks: BusinessRecommendation[] = [
+      {
+        id,
+        title: 'Retarget Abandoned Funnel Visitors with Dynamic Ads',
+        description: 'Set up Google and Meta retargeting pixels to show custom ads containing the exact items or pages that visitors abandoned at mid-funnel stages.',
+        impact: 'High',
+        effort: 'Medium',
+        category: 'Funnel'
+      },
+      {
+        id,
+        title: 'Implement Exit-Intent Popups for Leaving Users',
+        description: 'Catch users before they close the browser tab. Offer a discount, a free ebook, or subscription newsletter to capture the contact details of top-of-funnel traffic.',
+        impact: 'Medium',
+        effort: 'Low',
+        category: 'Funnel'
+      },
+      {
+        id,
+        title: 'Implement A/B Testing on Call-to-Action (CTA) Buttons',
+        description: 'Test CTA placement, colors, and wording (e.g. "Start Free Trial" vs. "See Dashboard") across all landing pages to incrementally lift funnel metrics.',
+        impact: 'Medium',
+        effort: 'Low',
+        category: 'Funnel'
+      }
+    ];
+
+    const nextFallback = fallbacks.find(fb => !recommendations.some(r => r.title === fb.title));
+    if (nextFallback) {
+      recommendations.push(nextFallback);
+    } else {
+      // Just in case, add generic unique ones
+      recommendations.push({
+        id,
+        title: `Conduct Qualitative User Testing on Step ${recommendations.length - 6}`,
+        description: 'Run weekly live user tests with real-world target profiles to spot logical friction or layout bugs in your core marketing checkout flow.',
+        impact: 'Medium',
+        effort: 'Medium',
+        category: 'Funnel'
+      });
+    }
   }
 
   return recommendations;

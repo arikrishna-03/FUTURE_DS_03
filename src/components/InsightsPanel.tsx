@@ -1,117 +1,55 @@
 import React from 'react';
-import { Target, ArrowRight, ShieldCheck } from 'lucide-react';
-import { DashboardData } from '../types';
-import { generateRecommendations } from '../utils/insightEngine';
-import { motion } from 'framer-motion';
+import { Lightbulb, CheckCircle2, AlertTriangle, Info } from 'lucide-react';
+import type { DynamicInsight } from '../utils/insightEngine';
 
 interface InsightsPanelProps {
-  data: DashboardData;
+  insights: DynamicInsight[];
 }
 
-export const InsightsPanel: React.FC<InsightsPanelProps> = ({ data }) => {
-  const recommendations = generateRecommendations(data);
+export const InsightsPanel: React.FC<InsightsPanelProps> = ({ insights }) => {
+  if (insights.length === 0) return null;
 
-  const containerVariants = {
-    hidden: {},
-    show: {
-      transition: {
-        staggerChildren: 0.04,
-      },
-    },
+  const getStyles = (type: 'success' | 'warning' | 'info') => {
+    switch (type) {
+      case 'success':
+        return {
+          bg: 'bg-emerald-950/20 border-emerald-900/40 text-emerald-300',
+          icon: <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+        };
+      case 'warning':
+        return {
+          bg: 'bg-rose-950/20 border-rose-900/40 text-rose-300',
+          icon: <AlertTriangle className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
+        };
+      case 'info':
+      default:
+        return {
+          bg: 'bg-cyan-950/20 border-cyan-900/40 text-cyan-300',
+          icon: <Info className="w-4 h-4 text-cyan-400 flex-shrink-0 mt-0.5" />
+        };
+    }
   };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 10 },
-    show: { opacity: 1, y: 0, transition: { duration: 0.25 } },
-  };
-
-  // Group recommendations by impact for better hierarchy
-  const highImpact = recommendations.filter(r => r.impact === 'High');
-  const mediumImpact = recommendations.filter(r => r.impact === 'Medium');
-  const lowImpact = recommendations.filter(r => r.impact === 'Low');
-
-  const orderedRecommendations = [...highImpact, ...mediumImpact, ...lowImpact];
 
   return (
-    <div className="border-t border-slate-200 dark:border-slate-800/80 pt-8 my-10" id="insights">
-      <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-slate-850 dark:text-slate-105 flex items-center gap-2">
-            <Target className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />
-            Strategic Retention Playbooks
-          </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Operational recommendations prioritized by business impact, targeting high-risk subscriber cohorts and revenue leaks.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 bg-slate-100 dark:bg-slate-800/60 dark:text-slate-400 px-3 py-1.5 border border-slate-200 dark:border-slate-800 rounded-xl">
-          <ShieldCheck className="w-4 h-4 text-emerald-500" />
-          <span>{recommendations.length} Active Recommendations</span>
-        </div>
-      </div>
-
-      <motion.div 
-        variants={containerVariants}
-        initial="hidden"
-        animate="show"
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-      >
-        {orderedRecommendations.map((rec) => {
-          let impactBadgeColor = '';
-          let impactBorderColor = '';
-          if (rec.impact === 'High') {
-            impactBadgeColor = 'bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-450';
-            impactBorderColor = 'border-rose-100 dark:border-rose-950/60';
-          } else if (rec.impact === 'Medium') {
-            impactBadgeColor = 'bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400';
-            impactBorderColor = 'border-amber-100 dark:border-amber-950/60';
-          } else {
-            impactBadgeColor = 'bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400';
-            impactBorderColor = 'border-blue-100 dark:border-blue-950/60';
-          }
-
+    <div className="mt-4 p-4 rounded-xl bg-slate-900/40 border border-slate-850/80 shadow-sm space-y-2.5">
+      <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 mb-3">
+        <Lightbulb className="w-3.5 h-3.5 text-violet-400" />
+        Data Analytics Insights
+      </h4>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {insights.map((insight) => {
+          const styles = getStyles(insight.type);
           return (
-            <motion.div
-              key={rec.id}
-              variants={itemVariants}
-              className={`bg-white dark:bg-slate-900/40 border border-slate-250/60 dark:border-slate-800/80 rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:border-slate-350 dark:hover:border-slate-700 hover:-translate-y-0.5 transition-all duration-200`}
+            <div
+              key={insight.id}
+              className={`p-3 rounded-lg border text-xs leading-relaxed flex items-start gap-2.5 shadow-sm transition duration-300 hover:brightness-105 ${styles.bg}`}
             >
-              <div>
-                <div className="flex justify-between items-center gap-2">
-                  <span className={`text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full border ${impactBadgeColor} ${impactBorderColor}`}>
-                    {rec.impact} Impact
-                  </span>
-                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
-                    Operational Play
-                  </span>
-                </div>
-                
-                <h4 className="text-sm font-bold text-slate-850 dark:text-slate-200 mt-4 leading-snug">
-                  {rec.title}
-                </h4>
-                
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
-                  {rec.text}
-                </p>
-              </div>
-
-              <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-850/40 flex justify-between items-center">
-                <span className="text-[10px] font-medium text-slate-400 uppercase">Automated Playbook</span>
-                <button className="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-350 flex items-center gap-1 group">
-                  {rec.actionLabel}
-                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-                </button>
-              </div>
-            </motion.div>
+              {styles.icon}
+              <span>{insight.text}</span>
+            </div>
           );
         })}
-
-        {recommendations.length === 0 && (
-          <p className="text-sm text-slate-500 text-center py-12 col-span-3 border border-dashed border-slate-200 dark:border-slate-850 rounded-2xl">
-            No recommendations available. Please check mapped metrics.
-          </p>
-        )}
-      </motion.div>
+      </div>
     </div>
   );
 };
