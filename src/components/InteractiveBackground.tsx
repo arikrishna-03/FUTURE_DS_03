@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 interface InteractiveBackgroundProps {
   isDarkMode: boolean;
   themeColor: 'indigo' | 'blue' | 'emerald' | 'purple' | 'rose' | 'amber';
+  showParticles?: boolean;
 }
 
 const COLOR_MAP = {
@@ -17,6 +18,7 @@ const COLOR_MAP = {
 export const InteractiveBackground: React.FC<InteractiveBackgroundProps> = ({
   isDarkMode,
   themeColor,
+  showParticles = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
@@ -32,6 +34,7 @@ export const InteractiveBackground: React.FC<InteractiveBackgroundProps> = ({
 
   // Canvas animation logic
   useEffect(() => {
+    if (!showParticles) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -148,25 +151,31 @@ export const InteractiveBackground: React.FC<InteractiveBackgroundProps> = ({
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener('resize', handleResize);
     };
-  }, [themeColor, mousePos, isDarkMode]);
+  }, [themeColor, mousePos, isDarkMode, showParticles]);
 
   const activeColor = COLOR_MAP[themeColor];
 
   // Mouse radial aura glow style
-  const radialGlow = isDarkMode
-    ? `radial-gradient(600px at ${mousePos.x}px ${mousePos.y}px, rgba(${activeColor.r}, ${activeColor.g}, ${activeColor.b}, 0.08), transparent 80%)`
-    : `radial-gradient(500px at ${mousePos.x}px ${mousePos.y}px, rgba(${activeColor.r}, ${activeColor.g}, ${activeColor.b}, 0.04), transparent 80%)`;
+  const radialGlow = showParticles
+    ? isDarkMode
+      ? `radial-gradient(600px at ${mousePos.x}px ${mousePos.y}px, rgba(${activeColor.r}, ${activeColor.g}, ${activeColor.b}, 0.08), transparent 80%)`
+      : `radial-gradient(500px at ${mousePos.x}px ${mousePos.y}px, rgba(${activeColor.r}, ${activeColor.g}, ${activeColor.b}, 0.04), transparent 80%)`
+    : '';
 
   return (
     <>
-      <canvas
-        ref={canvasRef}
-        className="fixed inset-0 pointer-events-none z-0 opacity-60 transition-opacity duration-500 print:hidden"
-      />
-      <div
-        className="fixed inset-0 pointer-events-none z-10 transition-opacity duration-300 print:hidden"
-        style={{ background: radialGlow }}
-      />
+      {showParticles && (
+        <canvas
+          ref={canvasRef}
+          className="fixed inset-0 pointer-events-none z-0 opacity-60 transition-opacity duration-500 print:hidden"
+        />
+      )}
+      {showParticles && radialGlow && (
+        <div
+          className="fixed inset-0 pointer-events-none z-10 transition-opacity duration-300 print:hidden"
+          style={{ background: radialGlow }}
+        />
+      )}
     </>
   );
 };

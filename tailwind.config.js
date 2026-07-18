@@ -9,13 +9,16 @@ export default {
     extend: {
       colors: {
         brand: {
-          dark: '#030712',
-          card: '#111827',
-          border: '#1f2937',
+          dark: '#090d16',
+          light: '#f8fafc',
+          cardDark: '#151b2c',
+          cardLight: '#ffffff',
+          borderDark: '#222d46',
+          borderLight: '#e2e8f0',
           accent: '#6366f1',
           accentLight: '#818cf8',
           success: '#10b981',
-          danger: '#ef4444',
+          danger: '#f43f5e',
           warning: '#f59e0b',
         },
       },
