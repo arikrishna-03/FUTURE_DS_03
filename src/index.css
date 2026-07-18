@@ -1,13 +1,19 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
-@layer base {
-  :root {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  }
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Archivo', 'Outfit', system-ui, sans-serif;
+  
+  --color-accent: #FF5D38;
+  --color-accent-hover: #E04824;
+  --color-dark-bg: #0E0E0E;
+}
 
-  h1, h2, h3, h4, h5, h6 {
-    font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+@layer base {
+  body {
+    background-color: #FFFDFC;
+    color: #0E0E0E;
   }
 }
 
@@ -15,34 +21,69 @@
 .bg-grid-pattern {
   background-size: 32px 32px;
   background-image: 
-    linear-gradient(to right, rgba(148, 163, 184, 0.1) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(148, 163, 184, 0.1) 1px, transparent 1px);
+    linear-gradient(to right, rgba(14, 14, 14, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(14, 14, 14, 0.04) 1px, transparent 1px);
 }
 
 /* Custom scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.3);
+  background: #FFFDFC;
+  border-left: 1px solid #0E0E0E;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(99, 102, 241, 0.25);
+  background: #0E0E0E;
+  border: 2px solid #FFFDFC;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(99, 102, 241, 0.5);
+  background: #FF5D38;
 }
 
-/* Custom transitions and animations */
+/* Retro shadow card stylings */
+.retro-card {
+  background: #ffffff;
+  border: 2px solid #0E0E0E;
+  box-shadow: 4px 4px 0px 0px #0E0E0E;
+  transition: all 0.2s ease-in-out;
+}
+
+.retro-card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px 0px #0E0E0E;
+}
+
+.retro-button {
+  background: #FF5D38;
+  color: #ffffff;
+  border: 2px solid #0E0E0E;
+  box-shadow: 2px 2px 0px 0px #0E0E0E;
+  font-weight: 700;
+  transition: all 0.15s ease-in-out;
+}
+
+.retro-button:hover {
+  background: #E04824;
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0px 0px #0E0E0E;
+}
+
+.retro-button:active {
+  transform: translate(1px, 1px);
+  box-shadow: 0px 0px 0px 0px #0E0E0E;
+}
+
+/* Animations */
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
@@ -51,14 +92,19 @@
 }
 
 .animate-fadeIn {
-  animation: fadeIn 0.4s ease-out forwards;
+  animation: fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Glassmorphism utility card stylings for light/dark */
-.glass-panel {
-  background: rgba(15, 23, 42, 0.45);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+/* Scroll reveals */
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.scroll-reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 /* CSS Theme light-mode overrides */

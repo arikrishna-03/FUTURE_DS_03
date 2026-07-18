@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Database } from 'lucide-react';
 import { UploadPanel } from './components/UploadPanel';
 import { ColumnMapper } from './components/ColumnMapper';
@@ -94,6 +94,34 @@ export const App: React.FC = () => {
     setStartDate(start);
     setEndDate(end);
   };
+
+  // 2.5 Scroll Reveal Observer
+  useEffect(() => {
+    if (!isCalibrated || !csvData || !mapping) return;
+    
+    // Add a tiny delay to ensure the DOM has updated
+    const timer = setTimeout(() => {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('visible');
+            }
+          });
+        },
+        { threshold: 0.05, rootMargin: '0px 0px -50px 0px' }
+      );
+
+      const elements = document.querySelectorAll('.scroll-reveal');
+      elements.forEach((el) => observer.observe(el));
+
+      return () => {
+        elements.forEach((el) => observer.unobserve(el));
+      };
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [isCalibrated, !!csvData, !!mapping]);
 
   // 3. Dynamic Aggregation Pipeline (Memoized)
   const dataPipeline = useMemo(() => {
@@ -273,7 +301,7 @@ export const App: React.FC = () => {
               </div>
 
               {/* CHAPTER 1: Hero / Executive Summary */}
-              <div id="executive-summary" className="scroll-mt-6">
+              <div id="executive-summary" className="scroll-mt-6 scroll-reveal">
                 <ExecutiveSummary 
                   metrics={dataPipeline.kpis} 
                   funnelData={dataPipeline.funnelData}
@@ -282,7 +310,7 @@ export const App: React.FC = () => {
               </div>
 
               {/* Segment Filters Control */}
-              <div className="print:hidden">
+              <div className="print:hidden scroll-reveal">
                 <DashboardFilters
                   channels={dataPipeline.filterChoices.channels}
                   campaigns={dataPipeline.filterChoices.campaigns}
@@ -306,12 +334,12 @@ export const App: React.FC = () => {
               </div>
 
               {/* CHAPTER 2: The Funnel Centerpiece */}
-              <div id="funnel-hero" className="scroll-mt-6">
+              <div id="funnel-hero" className="scroll-mt-6 scroll-reveal">
                 <FunnelHero funnelData={dataPipeline.funnelData} />
               </div>
 
               {/* CHAPTER 3: Diagnosis Leak Callout */}
-              <div id="dropoff-diagnosis" className="scroll-mt-6">
+              <div id="dropoff-diagnosis" className="scroll-mt-6 scroll-reveal">
                 <DropoffDiagnosis 
                   funnelData={dataPipeline.funnelData} 
                   metrics={dataPipeline.kpis}
@@ -320,7 +348,7 @@ export const App: React.FC = () => {
 
               {/* CHAPTER 4: Time-based trends & Channel Leaderboards */}
               <div className="grid grid-cols-1 gap-12">
-                <div id="trend-chart" className="scroll-mt-6">
+                <div id="trend-chart" className="scroll-mt-6 scroll-reveal">
                   <TrendChart 
                     dailyTrends={dataPipeline.dailyTrends}
                     decliningShifts={dataPipeline.decliningShifts}
@@ -329,7 +357,7 @@ export const App: React.FC = () => {
                   />
                 </div>
 
-                <div id="leaderboard" className="scroll-mt-6">
+                <div id="leaderboard" className="scroll-mt-6 scroll-reveal">
                   <ChannelLeaderboard 
                     channelsData={dataPipeline.channelsData}
                     campaignsData={dataPipeline.campaignsData}
@@ -338,12 +366,12 @@ export const App: React.FC = () => {
               </div>
 
               {/* CHAPTER 5: What To Do Next (Recommendations Playbook) */}
-              <div id="playbook" className="scroll-mt-6 print:hidden">
+              <div id="playbook" className="scroll-mt-6 print:hidden scroll-reveal">
                 <RecommendationsPanel recommendations={dataPipeline.recommendations} />
               </div>
 
               {/* CHAPTER 6: Record Database */}
-              <div id="database" className="scroll-mt-6 print:hidden">
+              <div id="database" className="scroll-mt-6 print:hidden scroll-reveal">
                 <DataTable 
                   rows={dataPipeline.filteredRows} 
                   headers={csvData.headers} 
