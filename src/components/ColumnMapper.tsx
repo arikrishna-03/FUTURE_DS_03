@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-
 import { ArrowRight, Table, Settings, ArrowUp, ArrowDown, HelpCircle, Layers, CheckCircle2 } from 'lucide-react';
 import { detectColumns } from '../utils/columnDetector';
 import type { CSVDataPreview, ColumnMapping } from '../types';
@@ -53,7 +52,7 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({ previewData, onMappi
     }
   }, [previewData]);
 
-  // Fallback heuristic if funnelEngine's sort isn't imported, let's replicate or design a clean one
+  // Fallback heuristic for standard ordering
   const getLogicalStageOrderHeuristic = (stages: string[]): string[] => {
     const stageWeights: Record<string, number> = {
       visitor: 1, visit: 1, session: 1, click: 1, awareness: 1, landing: 1.5,
@@ -128,28 +127,31 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({ previewData, onMappi
 
   return (
     <div className="w-full max-w-7xl mx-auto my-6 px-4">
-      {/* Top action header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-6 mb-8">
+      {/* Top Action Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b-3 border-[#0E0E0E] pb-6 mb-8">
         <div>
-          <h2 className="text-2xl font-bold text-slate-100 flex items-center gap-2">
-            <Settings className="w-6 h-6 text-violet-400" /> Data Calibration & Mapping
+          <span className="inline-block px-3 py-1 bg-[#FF5D38] text-white text-[10px] font-black uppercase tracking-widest rounded-full mb-1">
+            Data Quality Audit
+          </span>
+          <h2 className="text-3xl font-black text-[#0E0E0E] uppercase tracking-tight flex items-center gap-2.5 font-display">
+            <Settings className="w-8 h-8 text-[#FF5D38]" /> Schema Alignment
           </h2>
-          <p className="text-sm text-slate-400 mt-1">
-            Review parsed columns and auto-detected metrics. Override any guesses to configure the analytics charts.
+          <p className="text-sm font-medium text-slate-700 mt-1">
+            Ensure acquisition channels, marketing spend, and conversions are calibrated correctly.
           </p>
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-200 bg-slate-900 border border-slate-800 rounded-lg hover:bg-slate-800 transition duration-200 cursor-pointer"
+            className="px-4 py-2.5 text-xs font-black uppercase tracking-wider text-slate-700 bg-white hover:bg-slate-50 border-2 border-[#0E0E0E] rounded-xl transition duration-150 cursor-pointer"
           >
             Upload Different File
           </button>
           <button
             onClick={handleGenerate}
-            className="px-5 py-2 text-sm font-semibold text-white bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 rounded-lg hover:shadow-[0_0_15px_rgba(99,102,241,0.3)] transition duration-200 flex items-center gap-2 cursor-pointer"
+            className="px-5 py-3 text-xs font-black uppercase tracking-widest text-white bg-[#FF5D38] hover:bg-[#E54823] border-2 border-[#0E0E0E] rounded-xl shadow-[3px_3px_0px_rgba(14,14,14,1)] hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[5px_5px_0px_rgba(14,14,14,1)] active:translate-x-[0px] active:translate-y-[0px] active:shadow-[1px_1px_0px_rgba(14,14,14,1)] transition-all duration-150 flex items-center gap-2 cursor-pointer"
           >
-            Generate Dashboard <ArrowRight className="w-4 h-4" />
+            Generate Case Study <ArrowRight className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -157,90 +159,90 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({ previewData, onMappi
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         {/* Left Side: Column Mapping Selector Forms */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-8">
           
           {/* Card 1: Primary Dimensions */}
-          <div className="p-6 rounded-2xl bg-slate-900/60 backdrop-blur-md border border-slate-800/80 shadow-md">
-            <h3 className="text-lg font-semibold text-slate-200 mb-4 flex items-center gap-2">
-              <span className="flex items-center justify-center w-5.5 h-5.5 rounded-full bg-violet-950 text-violet-400 text-xs font-bold border border-violet-800/50">1</span>
-              Primary Marketing Dimensions
+          <div className="p-6 rounded-2xl bg-white border-3 border-[#0E0E0E] shadow-[4px_4px_0px_rgba(14,14,14,1)]">
+            <h3 className="text-xl font-black text-[#0E0E0E] uppercase tracking-tight mb-6 flex items-center gap-3 font-display">
+              <span className="flex items-center justify-center w-8 h-8 rounded-full bg-[#0E0E0E] text-white text-sm font-black">1</span>
+              User Acquisition Dimensions
             </h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {/* Lead ID */}
               <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Lead ID / Visitor ID</label>
+                <label className="block text-xs font-black text-[#0E0E0E] uppercase tracking-widest mb-2">Lead ID / Log ID</label>
                 <select
                   value={mapping.leadId}
                   onChange={(e) => setMapping(prev => ({ ...prev, leadId: e.target.value }))}
-                  className="w-full bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-violet-500 transition"
+                  className="w-full bg-white border-2 border-[#0E0E0E] rounded-xl px-3.5 py-2.5 text-sm text-[#0E0E0E] font-bold focus:outline-none focus:border-[#FF5D38] transition"
                 >
-                  <option value="">-- Choose (Optional) --</option>
+                  <option value="">-- Choose Header (Optional) --</option>
                   {headers.map(h => <option key={h} value={h}>{h}</option>)}
                 </select>
               </div>
 
               {/* Date */}
               <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Timestamp / Date</label>
+                <label className="block text-xs font-black text-[#0E0E0E] uppercase tracking-widest mb-2">Date / Timestamp</label>
                 <select
                   value={mapping.date}
                   onChange={(e) => setMapping(prev => ({ ...prev, date: e.target.value }))}
-                  className="w-full bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-violet-500 transition"
+                  className="w-full bg-white border-2 border-[#0E0E0E] rounded-xl px-3.5 py-2.5 text-sm text-[#0E0E0E] font-bold focus:outline-none focus:border-[#FF5D38] transition"
                 >
-                  <option value="">-- Choose (Optional) --</option>
+                  <option value="">-- Choose Header (Optional) --</option>
                   {headers.map(h => <option key={h} value={h}>{h}</option>)}
                 </select>
               </div>
 
               {/* Acquisition Channel */}
               <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Marketing Channel / Source</label>
+                <label className="block text-xs font-black text-[#0E0E0E] uppercase tracking-widest mb-2">Traffic Channel / Source</label>
                 <select
                   value={mapping.channel}
                   onChange={(e) => setMapping(prev => ({ ...prev, channel: e.target.value }))}
-                  className="w-full bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-violet-500 transition"
+                  className="w-full bg-white border-2 border-[#0E0E0E] rounded-xl px-3.5 py-2.5 text-sm text-[#0E0E0E] font-bold focus:outline-none focus:border-[#FF5D38] transition"
                 >
-                  <option value="">-- Choose (Optional) --</option>
+                  <option value="">-- Choose Header (Optional) --</option>
                   {headers.map(h => <option key={h} value={h}>{h}</option>)}
                 </select>
               </div>
 
               {/* Campaign */}
               <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Ad Campaign Name</label>
+                <label className="block text-xs font-black text-[#0E0E0E] uppercase tracking-widest mb-2">Campaign Name</label>
                 <select
                   value={mapping.campaign}
                   onChange={(e) => setMapping(prev => ({ ...prev, campaign: e.target.value }))}
-                  className="w-full bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-violet-500 transition"
+                  className="w-full bg-white border-2 border-[#0E0E0E] rounded-xl px-3.5 py-2.5 text-sm text-[#0E0E0E] font-bold focus:outline-none focus:border-[#FF5D38] transition"
                 >
-                  <option value="">-- Choose (Optional) --</option>
+                  <option value="">-- Choose Header (Optional) --</option>
                   {headers.map(h => <option key={h} value={h}>{h}</option>)}
                 </select>
               </div>
 
               {/* Device */}
               <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Device / Platform</label>
+                <label className="block text-xs font-black text-[#0E0E0E] uppercase tracking-widest mb-2">Device Category</label>
                 <select
                   value={mapping.device}
                   onChange={(e) => setMapping(prev => ({ ...prev, device: e.target.value }))}
-                  className="w-full bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-violet-500 transition"
+                  className="w-full bg-white border-2 border-[#0E0E0E] rounded-xl px-3.5 py-2.5 text-sm text-[#0E0E0E] font-bold focus:outline-none focus:border-[#FF5D38] transition"
                 >
-                  <option value="">-- Choose (Optional) --</option>
+                  <option value="">-- Choose Header (Optional) --</option>
                   {headers.map(h => <option key={h} value={h}>{h}</option>)}
                 </select>
               </div>
 
               {/* Region */}
               <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Region / Geography</label>
+                <label className="block text-xs font-black text-[#0E0E0E] uppercase tracking-widest mb-2">Region / Territory</label>
                 <select
                   value={mapping.region}
                   onChange={(e) => setMapping(prev => ({ ...prev, region: e.target.value }))}
-                  className="w-full bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-violet-500 transition"
+                  className="w-full bg-white border-2 border-[#0E0E0E] rounded-xl px-3.5 py-2.5 text-sm text-[#0E0E0E] font-bold focus:outline-none focus:border-[#FF5D38] transition"
                 >
-                  <option value="">-- Choose (Optional) --</option>
+                  <option value="">-- Choose Header (Optional) --</option>
                   {headers.map(h => <option key={h} value={h}>{h}</option>)}
                 </select>
               </div>
@@ -248,48 +250,48 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({ previewData, onMappi
           </div>
 
           {/* Card 2: Financial Mappings */}
-          <div className="p-6 rounded-2xl bg-slate-900/60 backdrop-blur-md border border-slate-800/80 shadow-md">
-            <h3 className="text-lg font-semibold text-slate-200 mb-4 flex items-center gap-2">
-              <span className="flex items-center justify-center w-5.5 h-5.5 rounded-full bg-emerald-950 text-emerald-400 text-xs font-bold border border-emerald-900/40">2</span>
-              Financial & Conversion Data
+          <div className="p-6 rounded-2xl bg-white border-3 border-[#0E0E0E] shadow-[4px_4px_0px_rgba(14,14,14,1)]">
+            <h3 className="text-xl font-black text-[#0E0E0E] uppercase tracking-tight mb-6 flex items-center gap-3 font-display">
+              <span className="flex items-center justify-center w-8 h-8 rounded-full bg-[#FF5D38] text-white text-sm font-black">2</span>
+              Spend & Revenue Metrics
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               {/* Campaign Cost */}
               <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Campaign Spend / Ad Spend</label>
+                <label className="block text-xs font-black text-[#0E0E0E] uppercase tracking-widest mb-2">Campaign Spend / Cost</label>
                 <select
                   value={mapping.spend}
                   onChange={(e) => setMapping(prev => ({ ...prev, spend: e.target.value }))}
-                  className="w-full bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-violet-500 transition"
+                  className="w-full bg-white border-2 border-[#0E0E0E] rounded-xl px-3.5 py-2.5 text-sm text-[#0E0E0E] font-bold focus:outline-none focus:border-[#FF5D38] transition"
                 >
-                  <option value="">-- Choose (Optional) --</option>
+                  <option value="">-- Choose Header (Optional) --</option>
                   {headers.map(h => <option key={h} value={h}>{h}</option>)}
                 </select>
               </div>
 
               {/* Revenue */}
               <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Revenue Generated</label>
+                <label className="block text-xs font-black text-[#0E0E0E] uppercase tracking-widest mb-2">Conversion Value / revenue</label>
                 <select
                   value={mapping.revenue}
                   onChange={(e) => setMapping(prev => ({ ...prev, revenue: e.target.value }))}
-                  className="w-full bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-violet-500 transition"
+                  className="w-full bg-white border-2 border-[#0E0E0E] rounded-xl px-3.5 py-2.5 text-sm text-[#0E0E0E] font-bold focus:outline-none focus:border-[#FF5D38] transition"
                 >
-                  <option value="">-- Choose (Optional) --</option>
+                  <option value="">-- Choose Header (Optional) --</option>
                   {headers.map(h => <option key={h} value={h}>{h}</option>)}
                 </select>
               </div>
 
               {/* Conversion Flag */}
               <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Conversion Flag (0/1)</label>
+                <label className="block text-xs font-black text-[#0E0E0E] uppercase tracking-widest mb-2">Conversion indicator flag</label>
                 <select
                   value={mapping.conversionFlag}
                   onChange={(e) => setMapping(prev => ({ ...prev, conversionFlag: e.target.value }))}
-                  className="w-full bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-violet-500 transition"
+                  className="w-full bg-white border-2 border-[#0E0E0E] rounded-xl px-3.5 py-2.5 text-sm text-[#0E0E0E] font-bold focus:outline-none focus:border-[#FF5D38] transition"
                 >
-                  <option value="">-- Choose (Optional) --</option>
+                  <option value="">-- Choose Header (Optional) --</option>
                   {headers.map(h => <option key={h} value={h}>{h}</option>)}
                 </select>
               </div>
@@ -297,27 +299,27 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({ previewData, onMappi
           </div>
 
           {/* Card 3: CSV Data Table Preview */}
-          <div className="p-6 rounded-2xl bg-slate-900/60 backdrop-blur-md border border-slate-800/80 shadow-md">
-            <h3 className="text-lg font-semibold text-slate-200 mb-4 flex items-center gap-2">
-              <Table className="w-5 h-5 text-slate-400" />
-              Source CSV Preview (First 5 Rows)
+          <div className="p-6 rounded-2xl bg-white border-3 border-[#0E0E0E] shadow-[4px_4px_0px_rgba(14,14,14,1)]">
+            <h3 className="text-xl font-black text-[#0E0E0E] uppercase tracking-tight mb-4 flex items-center gap-2 font-display">
+              <Table className="w-6 h-6 text-slate-500" />
+              Source Dataset Preview (First 5 Rows)
             </h3>
             
-            <div className="overflow-x-auto rounded-lg border border-slate-800">
+            <div className="overflow-x-auto rounded-xl border-2 border-[#0E0E0E]">
               <table className="min-w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-slate-950 border-b border-slate-800 text-slate-400 font-semibold uppercase">
+                  <tr className="bg-slate-100 border-b-2 border-[#0E0E0E] text-[#0E0E0E] font-black uppercase tracking-wider">
                     {headers.slice(0, 7).map(h => (
-                      <th key={h} className="px-4 py-3 font-semibold">{h}</th>
+                      <th key={h} className="px-4 py-3 font-black">{h}</th>
                     ))}
-                    {headers.length > 7 && <th className="px-4 py-3 font-semibold text-violet-400">+{headers.length - 7} more</th>}
+                    {headers.length > 7 && <th className="px-4 py-3 font-black text-[#FF5D38]">+{headers.length - 7} more</th>}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-850 bg-slate-900/20 text-slate-300">
+                <tbody className="divide-y divide-slate-200 bg-white text-slate-800 font-medium">
                   {previewRows.slice(0, 5).map((row, idx) => (
-                    <tr key={idx} className="hover:bg-slate-800/30">
+                    <tr key={idx} className="hover:bg-slate-50">
                       {headers.slice(0, 7).map(h => (
-                        <td key={h} className="px-4 py-2.5 truncate max-w-[120px]">{row[h] || <span className="text-slate-600 font-italic">null</span>}</td>
+                        <td key={h} className="px-4 py-2.5 truncate max-w-[120px]">{row[h] || <span className="text-slate-400 font-italic">null</span>}</td>
                       ))}
                       {headers.length > 7 && <td className="px-4 py-2.5 text-slate-500">...</td>}
                     </tr>
@@ -331,35 +333,35 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({ previewData, onMappi
 
         {/* Right Side: Funnel Configuration Panel */}
         <div className="lg:col-span-1 space-y-6">
-          <div className="p-6 rounded-2xl bg-slate-900/60 backdrop-blur-md border border-slate-850 shadow-lg sticky top-6">
-            <h3 className="text-lg font-semibold text-slate-200 mb-4 flex items-center gap-2">
-              <Layers className="w-5 h-5 text-violet-400" />
-              Funnel Schema Design
+          <div className="p-6 rounded-2xl bg-white border-3 border-[#0E0E0E] shadow-[6px_6px_0px_rgba(14,14,14,1)] sticky top-6">
+            <h3 className="text-xl font-black text-[#0E0E0E] uppercase tracking-tight mb-4 flex items-center gap-2 font-display">
+              <Layers className="w-6 h-6 text-[#FF5D38]" />
+              Funnel Architecture
             </h3>
 
             {/* Toggle funnel structure */}
-            <div className="bg-slate-950 p-1 rounded-lg flex border border-slate-800/80 mb-6">
+            <div className="bg-slate-100 p-1.5 rounded-xl flex border-2 border-[#0E0E0E] mb-6">
               <button
                 type="button"
                 onClick={() => setMapping(prev => ({ ...prev, isMultiColumnFunnel: false }))}
-                className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition ${
+                className={`flex-1 py-2 text-xs font-black uppercase tracking-wider rounded-lg transition ${
                   !mapping.isMultiColumnFunnel
-                    ? 'bg-violet-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-[#0E0E0E] text-white shadow'
+                    : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                Stage Column
+                Categorical
               </button>
               <button
                 type="button"
                 onClick={() => setMapping(prev => ({ ...prev, isMultiColumnFunnel: true }))}
-                className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition ${
+                className={`flex-1 py-2 text-xs font-black uppercase tracking-wider rounded-lg transition ${
                   mapping.isMultiColumnFunnel
-                    ? 'bg-violet-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-[#0E0E0E] text-white shadow'
+                    : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                Binary Step Columns
+                Binary Flag Columns
               </button>
             </div>
 
@@ -367,42 +369,42 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({ previewData, onMappi
             {!mapping.isMultiColumnFunnel ? (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Funnel Stage Column</label>
+                  <label className="block text-xs font-black text-[#0E0E0E] uppercase tracking-widest mb-2">Stage Mapping Header</label>
                   <select
                     value={mapping.funnelStage}
                     onChange={(e) => handleFunnelStageColChange(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-violet-500 transition"
+                    className="w-full bg-white border-2 border-[#0E0E0E] rounded-xl px-3.5 py-2.5 text-sm text-[#0E0E0E] font-bold focus:outline-none focus:border-[#FF5D38] transition"
                   >
                     <option value="">-- Select Column --</option>
                     {headers.map(h => <option key={h} value={h}>{h}</option>)}
                   </select>
-                  <p className="mt-2 text-[11px] text-slate-500 flex items-start gap-1">
-                    <HelpCircle className="w-3 h-3 flex-shrink-0 mt-0.5" />
-                    For CSVs where each record represents a lead, containing a single stage label (e.g. "MQL", "Closed Deal").
+                  <p className="mt-2.5 text-xs font-medium text-slate-500 flex items-start gap-1.5">
+                    <HelpCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-slate-400" />
+                    Recommended for files containing a stage label column (e.g. "Lead", "MQL", "SQL", "Won").
                   </p>
                 </div>
 
                 {singleColumnStages.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-slate-800">
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Sort Funnel Sequence</label>
-                    <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
+                  <div className="mt-4 pt-4 border-t-2 border-slate-100">
+                    <label className="block text-xs font-black text-[#0E0E0E] uppercase tracking-widest mb-3">Sequence Priority (Drag/Order)</label>
+                    <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
                       {singleColumnStages.map((stage, index) => (
-                        <div key={stage} className="flex items-center justify-between px-3 py-2 bg-slate-950 rounded-lg border border-slate-850 hover:border-slate-800 text-xs text-slate-300">
-                          <span className="font-medium truncate max-w-[140px]">{stage}</span>
-                          <div className="flex items-center gap-1">
+                        <div key={stage} className="flex items-center justify-between px-3.5 py-2 bg-slate-50 rounded-xl border-2 border-[#0E0E0E] text-xs font-bold text-[#0E0E0E] shadow-[2px_2px_0px_rgba(14,14,14,1)]">
+                          <span className="truncate max-w-[140px]">{stage}</span>
+                          <div className="flex items-center gap-1.5">
                             <button
                               disabled={index === 0}
                               onClick={() => moveStage(index, 'up', false)}
-                              className="p-1 hover:bg-slate-800 rounded disabled:opacity-30 disabled:hover:bg-transparent text-slate-400 hover:text-white"
+                              className="p-1 hover:bg-slate-200 rounded-md disabled:opacity-30 text-[#0E0E0E]"
                             >
-                              <ArrowUp className="w-3.5 h-3.5" />
+                              <ArrowUp className="w-4 h-4" />
                             </button>
                             <button
                               disabled={index === singleColumnStages.length - 1}
                               onClick={() => moveStage(index, 'down', false)}
-                              className="p-1 hover:bg-slate-800 rounded disabled:opacity-30 disabled:hover:bg-transparent text-slate-400 hover:text-white"
+                              className="p-1 hover:bg-slate-200 rounded-md disabled:opacity-30 text-[#0E0E0E]"
                             >
-                              <ArrowDown className="w-3.5 h-3.5" />
+                              <ArrowDown className="w-4 h-4" />
                             </button>
                           </div>
                         </div>
@@ -415,47 +417,47 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({ previewData, onMappi
               // Content: Mode 2 - Select multiple binary flag columns
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Select Funnel Columns</label>
-                  <div className="space-y-1.5 max-h-[160px] overflow-y-auto border border-slate-850 bg-slate-950 p-2 rounded-lg pr-1">
+                  <label className="block text-xs font-black text-[#0E0E0E] uppercase tracking-widest mb-2">Stage Flag Headers</label>
+                  <div className="space-y-2 max-h-[160px] overflow-y-auto border-2 border-[#0E0E0E] bg-white p-2.5 rounded-xl pr-1">
                     {headers.map(col => (
-                      <label key={col} className="flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-slate-900 cursor-pointer text-xs text-slate-300">
+                      <label key={col} className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-slate-100 cursor-pointer text-xs font-bold text-slate-700">
                         <input
                           type="checkbox"
                           checked={selectedMultiStages.includes(col)}
                           onChange={() => handleMultiColumnStageCheckbox(col)}
-                          className="rounded border-slate-800 text-violet-500 focus:ring-violet-500/20 bg-slate-950"
+                          className="w-4 h-4 rounded border-[#0E0E0E] text-[#FF5D38] focus:ring-[#FF5D38]/20 bg-white"
                         />
                         <span className="truncate">{col}</span>
                       </label>
                     ))}
                   </div>
-                  <p className="mt-2 text-[11px] text-slate-500 flex items-start gap-1">
-                    <HelpCircle className="w-3 h-3 flex-shrink-0 mt-0.5" />
-                    For CSVs where a user has separate indicator columns for steps (e.g. Visitors=1, Leads=1, Customers=0).
+                  <p className="mt-2.5 text-xs font-medium text-slate-500 flex items-start gap-1.5">
+                    <HelpCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-slate-400" />
+                    Recommended if logs have multiple flag fields (e.g. Visited=1, Lead=1, Bought=0).
                   </p>
                 </div>
 
                 {selectedMultiStages.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-slate-800">
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Order Funnel Steps</label>
-                    <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
+                  <div className="mt-4 pt-4 border-t-2 border-slate-100">
+                    <label className="block text-xs font-black text-[#0E0E0E] uppercase tracking-widest mb-3">Order Funnel Steps</label>
+                    <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
                       {selectedMultiStages.map((stage, index) => (
-                        <div key={stage} className="flex items-center justify-between px-3 py-2 bg-slate-950 rounded-lg border border-slate-850 hover:border-slate-800 text-xs text-slate-300">
-                          <span className="font-medium truncate max-w-[140px]">{stage}</span>
-                          <div className="flex items-center gap-1">
+                        <div key={stage} className="flex items-center justify-between px-3.5 py-2 bg-slate-50 rounded-xl border-2 border-[#0E0E0E] text-xs font-bold text-[#0E0E0E] shadow-[2px_2px_0px_rgba(14,14,14,1)]">
+                          <span className="truncate max-w-[140px]">{stage}</span>
+                          <div className="flex items-center gap-1.5">
                             <button
                               disabled={index === 0}
                               onClick={() => moveStage(index, 'up', true)}
-                              className="p-1 hover:bg-slate-800 rounded disabled:opacity-30 disabled:hover:bg-transparent text-slate-400 hover:text-white"
+                              className="p-1 hover:bg-slate-200 rounded-md disabled:opacity-30 text-[#0E0E0E]"
                             >
-                              <ArrowUp className="w-3.5 h-3.5" />
+                              <ArrowUp className="w-4 h-4" />
                             </button>
                             <button
                               disabled={index === selectedMultiStages.length - 1}
                               onClick={() => moveStage(index, 'down', true)}
-                              className="p-1 hover:bg-slate-800 rounded disabled:opacity-30 disabled:hover:bg-transparent text-slate-400 hover:text-white"
+                              className="p-1 hover:bg-slate-200 rounded-md disabled:opacity-30 text-[#0E0E0E]"
                             >
-                              <ArrowDown className="w-3.5 h-3.5" />
+                              <ArrowDown className="w-4 h-4" />
                             </button>
                           </div>
                         </div>
@@ -467,23 +469,23 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({ previewData, onMappi
             )}
 
             {/* Validation indicators */}
-            <div className="mt-6 pt-4 border-t border-slate-800 space-y-2.5">
-              <div className="flex items-center gap-2 text-xs">
-                <CheckCircle2 className={`w-4 h-4 ${mapping.channel ? 'text-emerald-500' : 'text-slate-650'}`} />
-                <span className={mapping.channel ? 'text-slate-300' : 'text-slate-500'}>Marketing Channel mapped</span>
+            <div className="mt-6 pt-4 border-t-2 border-slate-100 space-y-2.5">
+              <div className="flex items-center gap-2.5 text-xs font-bold text-slate-700">
+                <CheckCircle2 className={`w-4 h-4 ${mapping.channel ? 'text-[#FF5D38]' : 'text-slate-300'}`} />
+                <span className={mapping.channel ? 'text-[#0E0E0E]' : 'text-slate-400'}>Traffic source column mapped</span>
               </div>
-              <div className="flex items-center gap-2 text-xs">
-                <CheckCircle2 className={`w-4 h-4 ${(mapping.isMultiColumnFunnel ? selectedMultiStages.length >= 2 : singleColumnStages.length >= 2) ? 'text-emerald-500' : 'text-slate-650'}`} />
-                <span className={(mapping.isMultiColumnFunnel ? selectedMultiStages.length >= 2 : singleColumnStages.length >= 2) ? 'text-slate-300' : 'text-slate-500'}>At least 2 funnel steps defined</span>
+              <div className="flex items-center gap-2.5 text-xs font-bold text-slate-700">
+                <CheckCircle2 className={`w-4 h-4 ${(mapping.isMultiColumnFunnel ? selectedMultiStages.length >= 2 : singleColumnStages.length >= 2) ? 'text-[#FF5D38]' : 'text-slate-300'}`} />
+                <span className={(mapping.isMultiColumnFunnel ? selectedMultiStages.length >= 2 : singleColumnStages.length >= 2) ? 'text-[#0E0E0E]' : 'text-slate-400'}>At least 2 funnel steps sorted</span>
               </div>
             </div>
 
             {/* Generate Action Button */}
             <button
               onClick={handleGenerate}
-              className="w-full mt-6 py-3 text-center text-sm font-semibold text-white bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 rounded-xl hover:shadow-[0_4px_15px_rgba(99,102,241,0.2)] active:scale-[0.98] transition cursor-pointer"
+              className="w-full mt-6 py-4 text-center text-xs font-black uppercase tracking-wider text-white bg-[#FF5D38] hover:bg-[#E54823] border-2 border-[#0E0E0E] rounded-xl shadow-[4px_4px_0px_rgba(14,14,14,1)] hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_rgba(14,14,14,1)] active:translate-x-[0px] active:translate-y-[0px] active:shadow-[2px_2px_0px_rgba(14,14,14,1)] transition-all duration-150 cursor-pointer"
             >
-              Confirm Calibration
+              Verify Calibration
             </button>
           </div>
         </div>
@@ -492,3 +494,4 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({ previewData, onMappi
     </div>
   );
 };
+export default ColumnMapper;

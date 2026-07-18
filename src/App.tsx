@@ -1,37 +1,46 @@
 import React, { useState, useMemo } from 'react';
-import { Database, ShieldAlert, LineChart, Sparkles, LogOut } from 'lucide-react';
+import { Database } from 'lucide-react';
 import { UploadPanel } from './components/UploadPanel';
 import { ColumnMapper } from './components/ColumnMapper';
-import { KPICards } from './components/KPICards';
-import { DashboardFilters } from './components/DashboardFilters';
-import { InsightsPanel } from './components/InsightsPanel';
+import { ExecutiveSummary } from './components/ExecutiveSummary';
+import { FunnelHero } from './components/FunnelHero';
+import { DropoffDiagnosis } from './components/DropoffDiagnosis';
+import { ChannelLeaderboard } from './components/ChannelLeaderboard';
+import { TrendChart } from './components/TrendChart';
 import { RecommendationsPanel } from './components/RecommendationsPanel';
 import { DataTable } from './components/DataTable';
-
-// Charts
-import { FunnelVisualization } from './charts/FunnelVisualization';
-import { ChannelPerformanceChart } from './charts/ChannelPerformanceChart';
-import { CampaignPerformanceChart } from './charts/CampaignPerformanceChart';
-import { CustomerBehaviorChart } from './charts/CustomerBehaviorChart';
-import { RevenueAnalyticsChart } from './charts/RevenueAnalyticsChart';
+import { DashboardFilters } from './components/DashboardFilters';
 
 // Utils
-import { cleanAndProcessData, filterData, calculateFunnelData, calculateKPIs, calculateChannelPerformance, calculateCampaignPerformance, calculateDailyTrends, calculateSegmentBreakdown } from './utils/funnelEngine';
-import { getFunnelInsights, getChannelInsights, getCampaignInsights, getSegmentInsights, getRevenueInsights, generateRecommendations } from './utils/insightEngine';
+import { 
+  cleanAndProcessData, 
+  filterData, 
+  calculateFunnelData, 
+  calculateKPIs, 
+  calculateChannelPerformance, 
+  calculateCampaignPerformance, 
+  calculateDailyTrends 
+} from './utils/funnelEngine';
+
+import { 
+  generateRecommendations,
+  detectDecliningChannels
+} from './utils/insightEngine';
+
 import type { CSVDataPreview, ColumnMapping } from './types';
 
 export const App: React.FC = () => {
-  // 1. Navigation & State Setup
+  // 1. Navigation & Data States
   const [csvData, setCsvData] = useState<CSVDataPreview | null>(null);
   const [mapping, setMapping] = useState<ColumnMapping | null>(null);
   const [orderedStages, setOrderedStages] = useState<string[]>([]);
   const [isCalibrated, setIsCalibrated] = useState(false);
   const [fileName, setFileName] = useState<string>('sample_marketing_funnel.csv');
 
-  // Theme State
-  const [isDarkMode, setIsDarkMode] = useState(true);
+  // Time Bucket State
+  const [currentBucket, setCurrentBucket] = useState<'day' | 'week' | 'month'>('day');
 
-  // Filters State
+  // Active Filters State
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
   const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
@@ -40,10 +49,10 @@ export const App: React.FC = () => {
   const [endDate, setEndDate] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // 2. CSV Parser Callbacks
+  // 2. Event Callbacks
   const handleDataParsed = (data: CSVDataPreview) => {
     setCsvData(data);
-    setIsCalibrated(false); // require recalibration for a new upload
+    setIsCalibrated(false); // Recalibrate for any new upload
   };
 
   const handleLoadSample = () => {
@@ -61,7 +70,6 @@ export const App: React.FC = () => {
     setMapping(null);
     setOrderedStages([]);
     setIsCalibrated(false);
-    // Reset filters
     handleResetFilters();
   };
 
@@ -87,14 +95,14 @@ export const App: React.FC = () => {
     setEndDate(end);
   };
 
-  // 3. Dynamic Calculation Pipeline (Memoized)
+  // 3. Dynamic Aggregation Pipeline (Memoized)
   const dataPipeline = useMemo(() => {
     if (!csvData || !mapping) return null;
 
-    // A. Clean and process data (deduplicate, parse numbers, typecast)
+    // A. Clean and process data (normalize, deduplicate, casing fix)
     const { cleanedRows, quality } = cleanAndProcessData(csvData.rows, mapping);
 
-    // B. Extract filter lists from the ENTIRE cleaned dataset (before filters are applied)
+    // B. Extract filter selections from full cleaned dataset
     const uniqueChannels = Array.from(new Set(cleanedRows.map(r => r._channel).filter(Boolean))) as string[];
     const uniqueCampaigns = Array.from(new Set(cleanedRows.map(r => r._campaign).filter(Boolean))) as string[];
     const uniqueRegions = Array.from(new Set(cleanedRows.map(r => r._region).filter(Boolean))) as string[];
@@ -116,20 +124,43 @@ export const App: React.FC = () => {
     const kpis = calculateKPIs(filteredRows, funnelData, mapping);
     const channelsData = calculateChannelPerformance(filteredRows, mapping, funnelData);
     const campaignsData = calculateCampaignPerformance(filteredRows, mapping, funnelData);
-    const dailyTrends = calculateDailyTrends(filteredRows, mapping);
+    const dailyTrends = calculateDailyTrends(filteredRows, mapping, currentBucket);
     
-    // Segment breakouts
-    const deviceBreakdown = calculateSegmentBreakdown(filteredRows, '_device');
-    const regionBreakdown = calculateSegmentBreakdown(filteredRows, '_region');
+    // Segment breakouts for recommendation rules
+    const deviceBreakdown = filteredRows.reduce((acc: any[], row) => {
+      const dev = row._device || 'Desktop';
+      let existing = acc.find(item => item.segmentValue === dev);
+      if (!existing) {
+        existing = { segmentValue: dev, visitors: 0, conversions: 0 };
+        acc.push(existing);
+      }
+      existing.visitors++;
+      if (row._converted) existing.conversions++;
+      return acc;
+    }, []).map(item => ({
+      ...item,
+      conversionRate: item.visitors > 0 ? (item.conversions / item.visitors) * 100 : 0
+    }));
 
-    // E. Generate plain-English analytics insights
-    const funnelInsights = getFunnelInsights(funnelData, kpis);
-    const channelInsights = getChannelInsights(channelsData);
-    const campaignInsights = getCampaignInsights(campaignsData);
-    const segmentInsights = getSegmentInsights(deviceBreakdown, regionBreakdown);
-    const revenueInsights = getRevenueInsights(kpis);
+    const regionBreakdown = filteredRows.reduce((acc: any[], row) => {
+      const reg = row._region || 'Global';
+      let existing = acc.find(item => item.segmentValue === reg);
+      if (!existing) {
+        existing = { segmentValue: reg, visitors: 0, conversions: 0 };
+        acc.push(existing);
+      }
+      existing.visitors++;
+      if (row._converted) existing.conversions++;
+      return acc;
+    }, []).map(item => ({
+      ...item,
+      conversionRate: item.visitors > 0 ? (item.conversions / item.visitors) * 100 : 0
+    }));
 
-    // F. Generate actionable Recommendations Playbook (at least 10 items)
+    // E. Detect conversion rate shifts (notable shifts)
+    const decliningShifts = detectDecliningChannels(filteredRows);
+
+    // F. Generate Actionable recommendations (at least 10 items)
     const recommendations = generateRecommendations(
       funnelData,
       channelsData,
@@ -153,158 +184,104 @@ export const App: React.FC = () => {
       channelsData,
       campaignsData,
       dailyTrends,
-      deviceBreakdown,
-      regionBreakdown,
-      insights: {
-        funnelInsights,
-        channelInsights,
-        campaignInsights,
-        segmentInsights,
-        revenueInsights
-      },
+      decliningShifts,
       recommendations
     };
-  }, [csvData, mapping, orderedStages, selectedChannels, selectedCampaigns, selectedRegions, selectedDevices, startDate, endDate, searchQuery]);
+  }, [csvData, mapping, orderedStages, selectedChannels, selectedCampaigns, selectedRegions, selectedDevices, startDate, endDate, searchQuery, currentBucket]);
 
   // 4. Exporting Utilities
   const handleExportCSV = () => {
     if (!dataPipeline) return;
 
-    // Construct a summarized CSV download payload
     let csvContent = "data:text/csv;charset=utf-8,";
     csvContent += "Category,Metric,Value\n";
     
     const { kpis } = dataPipeline;
-    csvContent += `KPI,Total Traffic,${kpis.totalVisitors}\n`;
-    csvContent += `KPI,Total Leads,${kpis.totalLeads}\n`;
-    csvContent += `KPI,Conversions,${kpis.totalConversions}\n`;
-    csvContent += `KPI,Funnel Conversion Rate,${kpis.overallConversionRate.toFixed(2)}%\n`;
-    csvContent += `KPI,Total Spend,${kpis.totalSpend}\n`;
-    csvContent += `KPI,Total Revenue,${kpis.totalRevenue}\n`;
-    csvContent += `KPI,ROI,${kpis.roi.toFixed(1)}%\n`;
-    csvContent += `KPI,CAC,${kpis.cac.toFixed(2)}\n`;
+    csvContent += `Funnel KPI,Total Traffic,${kpis.totalVisitors}\n`;
+    csvContent += `Funnel KPI,Total Leads,${kpis.totalLeads}\n`;
+    csvContent += `Funnel KPI,Conversions,${kpis.totalConversions}\n`;
+    csvContent += `Funnel KPI,Overall Conversion Rate,${kpis.overallConversionRate.toFixed(2)}%\n`;
+    csvContent += `Funnel KPI,Total Spend,${kpis.totalSpend}\n`;
+    csvContent += `Funnel KPI,Total Revenue,${kpis.totalRevenue}\n`;
+    csvContent += `Funnel KPI,ROI,${kpis.roi.toFixed(1)}%\n`;
+    csvContent += `Funnel KPI,CAC,${kpis.cac.toFixed(2)}\n`;
 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `funnel_dashboard_export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute("download", `funnel_insights_report_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
   const handleExportPDF = () => {
-    // Print styled dashboard cleanly
     window.print();
   };
 
   return (
-    <div className={`min-h-screen font-sans antialiased transition-colors duration-300 ${
-      isDarkMode 
-        ? 'bg-slate-950 text-slate-100 selection:bg-violet-650 selection:text-white' 
-        : 'bg-slate-50 text-slate-900 selection:bg-violet-300 selection:text-slate-900'
-    }`}>
-      {/* Background glow meshes for dark theme */}
-      {isDarkMode && (
-        <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-          <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-indigo-900/10 rounded-full blur-3xl" />
-          <div className="absolute top-1/3 right-10 w-[400px] h-[400px] bg-violet-900/10 rounded-full blur-3xl" />
-          <div className="absolute bottom-10 left-10 w-[450px] h-[450px] bg-emerald-950/10 rounded-full blur-3xl" />
-        </div>
-      )}
-
-      {/* Global Wrapper */}
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div className="min-h-screen bg-[#FFFDFC] text-[#0E0E0E] selection:bg-[#FF5D38] selection:text-white pb-24 antialiased">
+      {/* Decorative Grid Backdrop */}
+      <div className="fixed inset-0 bg-grid-pattern opacity-[0.03] pointer-events-none z-0" />
+      
+      {/* Main Container */}
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         
-        {/* Navigation Screen Router */}
+        {/* Screening Navigation */}
         {!csvData ? (
           // SCREEN 1: File Uploader
-          <UploadPanel onDataParsed={handleDataParsed} onLoadSample={handleLoadSample} />
+          <UploadPanel 
+            onDataParsed={handleDataParsed} 
+            onLoadSample={handleLoadSample} 
+          />
         ) : !isCalibrated ? (
-          // SCREEN 2: Column Mapper & Heuristic Calibration
+          // SCREEN 2: Data Calibration & Dropdown Mapper
           <ColumnMapper
             previewData={csvData}
             onMappingConfirmed={handleMappingConfirmed}
             onCancel={handleReload}
           />
         ) : (
-          // SCREEN 3: Active Analytics Dashboard
+          // SCREEN 3: Active Analytics Case Study Dashboard
           dataPipeline && (
-            <div className="space-y-8 animate-fadeIn print:space-y-6">
+            <div className="space-y-12 animate-fadeIn print:space-y-8">
               
-              {/* SECTION 1: Dashboard Professional Header */}
-              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-5 border-b border-slate-800/80 pb-6 print:pb-3 print:border-none">
+              {/* Header Navigation */}
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-5 border-b-3 border-[#0E0E0E] pb-6 print:pb-3 print:border-none">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-0.5 text-[10px] font-bold text-violet-400 bg-violet-950/60 border border-violet-850 rounded-full uppercase tracking-wider">
-                      Analytics Panel
+                    <span className="px-3 py-1 text-[10px] font-black text-white bg-[#0E0E0E] rounded-md uppercase tracking-wider">
+                      CASE STUDY REPORT
                     </span>
-                    <span className="text-[10px] text-slate-500 font-semibold truncate max-w-[200px] flex items-center gap-1">
-                      <Database className="w-3 h-3 text-slate-600" /> {fileName}
+                    <span className="text-xs text-slate-500 font-bold truncate max-w-[200px] flex items-center gap-1">
+                      <Database className="w-3.5 h-3.5 text-slate-400" /> {fileName}
                     </span>
                   </div>
-                  <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-200 to-violet-400 bg-clip-text text-transparent mt-2 print:text-slate-900 print:bg-none print:text-2xl">
-                    Marketing Funnel & Conversion Analytics
+                  <h1 className="text-4xl font-black tracking-tight text-[#0E0E0E] uppercase mt-2.5 font-display print:text-2xl leading-none">
+                    Funnel Insights <span className="text-[#FF5D38]">Analysis</span>
                   </h1>
-                  <p className="text-xs text-slate-400 mt-1 print:hidden">
-                    Assess customer progression velocity, channel spend allocation, and growth bottlenecks.
-                  </p>
                 </div>
 
                 <div className="flex items-center gap-3 print:hidden">
                   <button
                     onClick={handleReload}
-                    className="px-4 py-2 text-xs font-semibold rounded-xl bg-slate-900 hover:bg-slate-850 text-slate-400 hover:text-white border border-slate-800 flex items-center gap-1.5 transition cursor-pointer"
+                    className="px-5 py-3 text-xs font-black uppercase tracking-wider text-slate-700 bg-white hover:bg-slate-50 border-2 border-[#0E0E0E] rounded-xl transition cursor-pointer"
                   >
-                    <LogOut className="w-3.5 h-3.5" /> Reload New File
+                    Reload New CSV File
                   </button>
                 </div>
               </div>
 
-              {/* HERO METADATA CARD (Objectives & Stack info) */}
-              <div className="p-5 rounded-2xl bg-slate-900/60 backdrop-blur-md border border-slate-800/80 grid grid-cols-1 md:grid-cols-4 gap-6 print:hidden">
-                <div className="space-y-1 md:col-span-1 border-r border-slate-850 pr-4">
-                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-violet-400" /> Executive Goal
-                  </h4>
-                  <p className="text-xs text-slate-300 leading-relaxed font-medium">
-                    Map customer acquisition pipeline, isolate leaky stages, assess channels, and scale campaign profitability.
-                  </p>
-                </div>
-                
-                <div className="space-y-1 md:col-span-1 border-r border-slate-850 pr-4">
-                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                    <Database className="w-3 h-3 text-emerald-400" /> Data Source Profile
-                  </h4>
-                  <div className="text-[11px] text-slate-350 space-y-0.5">
-                    <div>Total Records: <strong>{dataPipeline.quality.totalRows}</strong></div>
-                    <div>Valid Leads Mapped: <strong>{dataPipeline.quality.validRows}</strong></div>
-                    <div>Duplicate Leads: <strong>{dataPipeline.quality.duplicateLeadsCount}</strong></div>
-                  </div>
-                </div>
-
-                <div className="space-y-1 md:col-span-1 border-r border-slate-850 pr-4">
-                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                    <ShieldAlert className="w-3 h-3 text-rose-400" /> Data Quality Summary
-                  </h4>
-                  <p className="text-[11px] text-slate-400 leading-normal">
-                    Dropped {dataPipeline.quality.droppedRows} duplicate logs. Found {dataPipeline.quality.missingValuesCount} missing points. Normalizing casing and currency inputs automatically.
-                  </p>
-                </div>
-
-                <div className="space-y-1 md:col-span-1">
-                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                    <LineChart className="w-3 h-3 text-cyan-400" /> Analytics Engine Stack
-                  </h4>
-                  <div className="flex flex-wrap gap-1 mt-1.5">
-                    {['React', 'TypeScript', 'Tailwind', 'Recharts', 'PapaParse'].map(t => (
-                      <span key={t} className="px-2 py-0.5 rounded bg-slate-950 border border-slate-850 text-[10px] text-slate-500 font-semibold">{t}</span>
-                    ))}
-                  </div>
-                </div>
+              {/* CHAPTER 1: Hero / Executive Summary */}
+              <div id="executive-summary" className="scroll-mt-6">
+                <ExecutiveSummary 
+                  metrics={dataPipeline.kpis} 
+                  funnelData={dataPipeline.funnelData}
+                  quality={dataPipeline.quality}
+                />
               </div>
 
-              {/* SECTION 9: Interactive Segment Filters */}
+              {/* Segment Filters Control */}
               <div className="print:hidden">
                 <DashboardFilters
                   channels={dataPipeline.filterChoices.channels}
@@ -325,70 +302,52 @@ export const App: React.FC = () => {
                   onReload={handleReload}
                   onExportPDF={handleExportPDF}
                   onExportCSV={handleExportCSV}
-                  isDarkMode={isDarkMode}
-                  onToggleTheme={() => setIsDarkMode(!isDarkMode)}
                 />
               </div>
 
-              {/* SECTION 2: Executive KPI Cards */}
-              <KPICards metrics={dataPipeline.kpis} />
-
-              {/* Double Column Grid: Funnel waterfall and Revenue Trend */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* SECTION 3: Marketing Funnel Visualization */}
-                <div className="space-y-3">
-                  <FunnelVisualization funnelData={dataPipeline.funnelData} />
-                  <div className="print:hidden">
-                    <InsightsPanel insights={dataPipeline.insights.funnelInsights} />
-                  </div>
-                </div>
-
-                {/* SECTION 8: Revenue Analytics Trend */}
-                <div className="space-y-3">
-                  <RevenueAnalyticsChart dailyTrends={dataPipeline.dailyTrends} />
-                  <div className="print:hidden">
-                    <InsightsPanel insights={dataPipeline.insights.revenueInsights} />
-                  </div>
-                </div>
+              {/* CHAPTER 2: The Funnel Centerpiece */}
+              <div id="funnel-hero" className="scroll-mt-6">
+                <FunnelHero funnelData={dataPipeline.funnelData} />
               </div>
 
-              {/* SECTION 6: Channel Performance */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="space-y-3">
-                  <ChannelPerformanceChart channelsData={dataPipeline.channelsData} />
-                  <div className="print:hidden">
-                    <InsightsPanel insights={dataPipeline.insights.channelInsights} />
-                  </div>
-                </div>
-
-                {/* SECTION 5: Campaign Performance */}
-                <div className="space-y-3">
-                  <CampaignPerformanceChart campaignsData={dataPipeline.campaignsData} />
-                  <div className="print:hidden">
-                    <InsightsPanel insights={dataPipeline.insights.campaignInsights} />
-                  </div>
-                </div>
-              </div>
-
-              {/* SECTION 7: Segment / Behavior Breakdown (Device & Region) */}
-              <div className="space-y-3">
-                <CustomerBehaviorChart
-                  deviceData={dataPipeline.deviceBreakdown}
-                  regionData={dataPipeline.regionBreakdown}
+              {/* CHAPTER 3: Diagnosis Leak Callout */}
+              <div id="dropoff-diagnosis" className="scroll-mt-6">
+                <DropoffDiagnosis 
+                  funnelData={dataPipeline.funnelData} 
+                  metrics={dataPipeline.kpis}
                 />
-                <div className="print:hidden">
-                  <InsightsPanel insights={dataPipeline.insights.segmentInsights} />
+              </div>
+
+              {/* CHAPTER 4: Time-based trends & Channel Leaderboards */}
+              <div className="grid grid-cols-1 gap-12">
+                <div id="trend-chart" className="scroll-mt-6">
+                  <TrendChart 
+                    dailyTrends={dataPipeline.dailyTrends}
+                    decliningShifts={dataPipeline.decliningShifts}
+                    currentBucket={currentBucket}
+                    onBucketChange={setCurrentBucket}
+                  />
+                </div>
+
+                <div id="leaderboard" className="scroll-mt-6">
+                  <ChannelLeaderboard 
+                    channelsData={dataPipeline.channelsData}
+                    campaignsData={dataPipeline.campaignsData}
+                  />
                 </div>
               </div>
 
-              {/* SECTION 11: Business Recommendations Playbook */}
-              <div className="print:hidden">
+              {/* CHAPTER 5: What To Do Next (Recommendations Playbook) */}
+              <div id="playbook" className="scroll-mt-6 print:hidden">
                 <RecommendationsPanel recommendations={dataPipeline.recommendations} />
               </div>
 
-              {/* SECTION 12: Campaign database listing */}
-              <div className="print:hidden">
-                <DataTable rows={dataPipeline.filteredRows} headers={csvData.headers} />
+              {/* CHAPTER 6: Record Database */}
+              <div id="database" className="scroll-mt-6 print:hidden">
+                <DataTable 
+                  rows={dataPipeline.filteredRows} 
+                  headers={csvData.headers} 
+                />
               </div>
 
             </div>

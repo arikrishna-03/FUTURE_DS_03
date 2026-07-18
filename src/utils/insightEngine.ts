@@ -391,3 +391,79 @@ export const generateRecommendations = (
 
   return recommendations;
 };
+
+export interface DecliningChannelShift {
+  channel: string;
+  historicalRate: number;
+  recentRate: number;
+  dropRelative: number;
+}
+
+export const detectDecliningChannels = (
+  filteredRows: Record<string, any>[]
+): DecliningChannelShift[] => {
+  const dates = filteredRows
+    .map(r => r._date)
+    .filter(Boolean)
+    .sort() as string[];
+
+  if (dates.length < 15) return [];
+
+  // Use the last 20% of the timeline as the "recent" period
+  const splitIdx = Math.floor(dates.length * 0.8);
+  const splitDate = dates[splitIdx];
+
+  const channelStats: Record<string, {
+    histVisitors: number;
+    histConversions: number;
+    recentVisitors: number;
+    recentConversions: number;
+  }> = {};
+
+  filteredRows.forEach(row => {
+    const chan = row._channel || 'Direct';
+    const date = row._date;
+    if (!date) return;
+
+    if (!channelStats[chan]) {
+      channelStats[chan] = { histVisitors: 0, histConversions: 0, recentVisitors: 0, recentConversions: 0 };
+    }
+
+    const stats = channelStats[chan];
+    const isRecent = date >= splitDate;
+    const isConv = !!row._converted;
+
+    if (isRecent) {
+      stats.recentVisitors++;
+      if (isConv) stats.recentConversions++;
+    } else {
+      stats.histVisitors++;
+      if (isConv) stats.histConversions++;
+    }
+  });
+
+  const shifts: DecliningChannelShift[] = [];
+
+  Object.keys(channelStats).forEach(chan => {
+    const s = channelStats[chan];
+    if (s.histVisitors >= 8 && s.recentVisitors >= 4) {
+      const histRate = (s.histConversions / s.histVisitors) * 100;
+      const recentRate = (s.recentConversions / s.recentVisitors) * 100;
+      
+      const absoluteDrop = histRate - recentRate;
+      const relativeDrop = histRate > 0 ? (absoluteDrop / histRate) * 100 : 0;
+
+      // Flag a drop of 20% or more relative, and at least 0.5% absolute
+      if (relativeDrop >= 20 && absoluteDrop >= 0.5) {
+        shifts.push({
+          channel: chan,
+          historicalRate: histRate,
+          recentRate: recentRate,
+          dropRelative: relativeDrop
+        });
+      }
+    }
+  });
+
+  return shifts;
+};

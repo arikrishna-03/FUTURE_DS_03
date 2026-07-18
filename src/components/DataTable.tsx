@@ -67,41 +67,47 @@ export const DataTable: React.FC<DataTableProps> = ({ rows, headers }) => {
   };
 
   return (
-    <div className="p-6 rounded-2xl bg-slate-900/60 backdrop-blur-md border border-slate-800/80 shadow-md space-y-4">
-      <div className="flex items-center justify-between border-b border-slate-850 pb-4">
+    <div className="w-full bg-[#FFFDFC] border-3 border-[#0E0E0E] rounded-3xl p-8 shadow-[6px_6px_0px_rgba(14,14,14,1)] space-y-6">
+      
+      {/* Header */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b-2 border-slate-100 pb-5">
         <div>
-          <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-            <Eye className="w-5.5 h-5.5 text-slate-450" /> Campaign Records Database
+          <span className="inline-block px-3 py-1 bg-[#FF5D38] text-white text-[10px] font-black uppercase tracking-widest rounded-md mb-2">
+            AUDIT JOURNAL
+          </span>
+          <h3 className="text-3xl font-black text-[#0E0E0E] uppercase tracking-tight font-display flex items-center gap-2">
+            <Eye className="w-7 h-7 text-[#FF5D38]" /> Cleaned Record Explorer
           </h3>
-          <p className="text-xs text-slate-400 mt-1">
-            Browse and audit cleaned, mapped user session logs ({rows.length} total rows matched).
+          <p className="text-sm font-medium text-slate-600 mt-1">
+            Browse and inspect cleaned and mapped lead journey events ({rows.length} total rows matched).
           </p>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-850 bg-slate-950/20">
+      {/* Raw Table */}
+      <div className="overflow-x-auto rounded-2xl border-2 border-[#0E0E0E] bg-white">
         <table className="min-w-full text-left border-collapse text-xs select-none">
           <thead>
-            <tr className="bg-slate-950 border-b border-slate-850 text-slate-400 font-semibold uppercase tracking-wider">
+            <tr className="bg-slate-100 border-b-2 border-[#0E0E0E] text-[#0E0E0E] font-black uppercase tracking-wider">
               {displayHeaders.map(col => (
                 <th
                   key={col}
                   onClick={() => handleSort(col)}
-                  className="px-4 py-3.5 cursor-pointer hover:bg-slate-900 hover:text-white transition duration-150 font-semibold"
+                  className="px-4 py-4 cursor-pointer hover:bg-slate-200 transition duration-150 font-black"
                 >
                   <div className="flex items-center gap-1.5">
                     {col}
-                    <ArrowUpDown className="w-3.5 h-3.5 text-slate-550" />
+                    <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
                   </div>
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-850 text-slate-300">
+          <tbody className="divide-y divide-slate-200 text-slate-800 font-medium">
             {currentRows.map((row, idx) => (
-              <tr key={idx} className="hover:bg-slate-900/40 transition">
+              <tr key={idx} className="hover:bg-slate-50 transition">
                 {displayHeaders.map(col => (
-                  <td key={col} className="px-4 py-3 font-medium max-w-[150px] truncate">
+                  <td key={col} className="px-4 py-3 max-w-[150px] truncate">
                     {formatValue(col, row[col])}
                   </td>
                 ))}
@@ -109,8 +115,8 @@ export const DataTable: React.FC<DataTableProps> = ({ rows, headers }) => {
             ))}
             {currentRows.length === 0 && (
               <tr>
-                <td colSpan={displayHeaders.length} className="text-center py-8 text-slate-550 font-medium">
-                  No records to display.
+                <td colSpan={displayHeaders.length} className="text-center py-12 text-slate-400 font-bold uppercase tracking-wider">
+                  No records matching active filter choices.
                 </td>
               </tr>
             )}
@@ -120,24 +126,23 @@ export const DataTable: React.FC<DataTableProps> = ({ rows, headers }) => {
 
       {/* Pagination Controls */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between pt-3 text-xs">
-          <span className="text-slate-400 font-medium">
-            Showing <strong className="text-slate-200">{indexOfFirstRow + 1}</strong> to{' '}
-            <strong className="text-slate-200">{Math.min(indexOfLastRow, rows.length)}</strong> of{' '}
-            <strong className="text-slate-200">{rows.length}</strong> records
+        <div className="flex flex-col sm:flex-row items-center justify-between pt-4 gap-4 text-xs font-bold text-slate-700">
+          <span>
+            Showing <strong className="text-[#0E0E0E]">{indexOfFirstRow + 1}</strong> to{' '}
+            <strong className="text-[#0E0E0E]">{Math.min(indexOfLastRow, rows.length)}</strong> of{' '}
+            <strong className="text-[#0E0E0E]">{rows.length}</strong> records
           </span>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => handlePageChange(currentPage - 1)}
               disabled={currentPage === 1}
-              className="p-1.5 bg-slate-950 border border-slate-850 hover:border-slate-800 text-slate-400 hover:text-white rounded-lg disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer"
+              className="p-2 bg-white border-2 border-[#0E0E0E] hover:bg-slate-100 rounded-xl disabled:opacity-30 cursor-pointer"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-4 h-4 text-[#0E0E0E]" />
             </button>
             
             {Array.from({ length: Math.min(5, totalPages) }).map((_, i) => {
-              // Calculate page numbers around current
               let pageNum = currentPage;
               if (currentPage <= 3) pageNum = i + 1;
               else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
@@ -149,10 +154,10 @@ export const DataTable: React.FC<DataTableProps> = ({ rows, headers }) => {
                 <button
                   key={pageNum}
                   onClick={() => handlePageChange(pageNum)}
-                  className={`w-7.5 h-7.5 font-bold rounded-lg transition border cursor-pointer ${
+                  className={`w-8 h-8 font-black rounded-xl transition border-2 cursor-pointer ${
                     currentPage === pageNum
-                      ? 'bg-violet-600 border-violet-500 text-white shadow'
-                      : 'bg-slate-950 border-slate-850 text-slate-400 hover:border-slate-800 hover:text-slate-200'
+                      ? 'bg-[#FF5D38] border-[#0E0E0E] text-white shadow-[2px_2px_0px_rgba(14,14,14,1)]'
+                      : 'bg-white border-slate-200 text-slate-700 hover:border-[#0E0E0E] hover:text-[#0E0E0E]'
                   }`}
                 >
                   {pageNum}
@@ -163,9 +168,9 @@ export const DataTable: React.FC<DataTableProps> = ({ rows, headers }) => {
             <button
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage === totalPages}
-              className="p-1.5 bg-slate-950 border border-slate-850 hover:border-slate-800 text-slate-400 hover:text-white rounded-lg disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer"
+              className="p-2 bg-white border-2 border-[#0E0E0E] hover:bg-slate-100 rounded-xl disabled:opacity-30 cursor-pointer"
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-4 h-4 text-[#0E0E0E]" />
             </button>
           </div>
         </div>
@@ -173,3 +178,4 @@ export const DataTable: React.FC<DataTableProps> = ({ rows, headers }) => {
     </div>
   );
 };
+export default DataTable;

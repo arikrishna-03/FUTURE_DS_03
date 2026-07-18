@@ -56,33 +56,30 @@ export const cleanAndProcessData = (
 ): { cleanedRows: Record<string, any>[]; quality: DataQualitySummary } => {
   let nullsCount = 0;
   let duplicateCount = 0;
+  let casingIssuesCount = 0;
   const seenIds = new Set<string>();
   const interpretationNotes: string[] = [];
 
   // 1. Identify primary columns
   interpretationNotes.push(
     mapping.isMultiColumnFunnel
-      ? `Using multi-column funnel with stages: ${mapping.multiColumnStages.join(' → ')}`
+      ? `Auto-detected multi-stage funnel using boolean indicator columns: ${mapping.multiColumnStages.join(' → ')}`
       : mapping.funnelStage
-      ? `Using single stage column: "${mapping.funnelStage}"`
+      ? `Using single categorical stage column: "${mapping.funnelStage}"`
       : 'No funnel stage columns mapped yet.'
   );
 
-  if (mapping.date) interpretationNotes.push(`Mapped date column: "${mapping.date}"`);
-  if (mapping.channel) interpretationNotes.push(`Mapped marketing channel: "${mapping.channel}"`);
-  if (mapping.spend) interpretationNotes.push(`Mapped budget/cost: "${mapping.spend}"`);
-  if (mapping.revenue) interpretationNotes.push(`Mapped revenue: "${mapping.revenue}"`);
-  if (mapping.conversionFlag) interpretationNotes.push(`Mapped conversion indicator: "${mapping.conversionFlag}"`);
+  if (mapping.date) interpretationNotes.push(`Normalized dates using column: "${mapping.date}"`);
+  if (mapping.channel) interpretationNotes.push(`Grouped acquisition sources via: "${mapping.channel}"`);
+  if (mapping.spend) interpretationNotes.push(`Analyzed budget from: "${mapping.spend}"`);
+  if (mapping.revenue) interpretationNotes.push(`Parsed sales revenues from: "${mapping.revenue}"`);
 
   const cleanedRows: Record<string, any>[] = [];
 
   for (const row of rawRows) {
-
-    // Check for critical missing values
-    const leadIdVal = mapping.leadId ? row[mapping.leadId] : '';
-    const dateVal = mapping.date ? row[mapping.date] : '';
-    
     // Deduplication if ID is present
+    const leadIdVal = mapping.leadId ? String(row[mapping.leadId] || '').trim() : '';
+    
     if (leadIdVal && seenIds.has(leadIdVal)) {
       duplicateCount++;
       continue;
@@ -95,17 +92,25 @@ export const cleanAndProcessData = (
     const cleanedRow: Record<string, any> = { ...row };
     
     cleanedRow._leadId = leadIdVal;
-    cleanedRow._date = dateVal ? parseDateString(dateVal) : '';
-    cleanedRow._channel = mapping.channel ? row[mapping.channel] || 'Direct' : 'Direct';
-    cleanedRow._campaign = mapping.campaign ? row[mapping.campaign] || 'N/A' : 'N/A';
-    cleanedRow._device = mapping.device ? row[mapping.device] || 'Desktop' : 'Desktop';
-    cleanedRow._region = mapping.region ? row[mapping.region] || 'Global' : 'Global';
+    cleanedRow._date = mapping.date && row[mapping.date] ? parseDateString(row[mapping.date]) : '';
+    cleanedRow._channel = mapping.channel ? String(row[mapping.channel] || '').trim() : 'Direct';
+    cleanedRow._campaign = mapping.campaign ? String(row[mapping.campaign] || '').trim() : 'N/A';
+    cleanedRow._device = mapping.device ? String(row[mapping.device] || '').trim() : 'Desktop';
+    cleanedRow._region = mapping.region ? String(row[mapping.region] || '').trim() : 'Global';
+    
+    // Normalize missing text fields to fallbacks
+    if (!cleanedRow._channel) cleanedRow._channel = 'Direct';
+    if (!cleanedRow._campaign) cleanedRow._campaign = 'N/A';
+    if (!cleanedRow._device) cleanedRow._device = 'Desktop';
+    if (!cleanedRow._region) cleanedRow._region = 'Global';
+
     cleanedRow._spend = mapping.spend ? parseNumber(row[mapping.spend]) : 0;
     cleanedRow._revenue = mapping.revenue ? parseNumber(row[mapping.revenue]) : 0;
     cleanedRow._converted = false;
 
     // Check if any mapped column is null/empty
     Object.keys(mapping).forEach(key => {
+      if (key === 'multiColumnStages' || key === 'isMultiColumnFunnel') return;
       const colName = mapping[key as keyof ColumnMapping];
       if (typeof colName === 'string' && colName && !row[colName]) {
         nullsCount++;
@@ -121,13 +126,36 @@ export const cleanAndProcessData = (
 
     // For single column stage
     if (!mapping.isMultiColumnFunnel && mapping.funnelStage) {
-      cleanedRow._funnelStage = row[mapping.funnelStage] || '';
-      if (!cleanedRow._funnelStage) {
+      const rawStage = (row[mapping.funnelStage] || '').trim();
+      if (!rawStage) {
         nullsCount++;
+        cleanedRow._funnelStage = 'Unknown';
+      } else {
+        // Standardize casing to Title Case (e.g. lead -> Lead, LEAD -> Lead)
+        const normalized = rawStage.charAt(0).toUpperCase() + rawStage.slice(1).toLowerCase();
+        if (normalized !== rawStage) {
+          casingIssuesCount++;
+        }
+        cleanedRow._funnelStage = normalized;
       }
     }
 
     cleanedRows.push(cleanedRow);
+  }
+
+  // Generate data health summaries
+  if (duplicateCount > 0) {
+    interpretationNotes.push(`Deduplication: Excised ${duplicateCount} duplicate lead record logs to preserve funnel metrics.`);
+  } else {
+    interpretationNotes.push('Deduplication: Audited dataset and found no duplicate customer IDs.');
+  }
+
+  if (nullsCount > 0) {
+    interpretationNotes.push(`Data Integrity: Flagged ${nullsCount} missing/blank cells and backfilled with conservative default values.`);
+  }
+
+  if (casingIssuesCount > 0) {
+    interpretationNotes.push(`Standardization: Normalized casing in ${casingIssuesCount} stage fields to unify stage funnel states.`);
   }
 
   const quality: DataQualitySummary = {
@@ -441,11 +469,34 @@ export const calculateCampaignPerformance = (
   });
 };
 
-// Calculate daily metrics trend
+// Calculate metrics trend bucketed by Day, Week, or Month
 export const calculateDailyTrends = (
   filteredRows: Record<string, any>[],
-  mapping: ColumnMapping
+  mapping: ColumnMapping,
+  bucket: 'day' | 'week' | 'month' = 'day'
 ): DailyMetrics[] => {
+  const getStartOfWeekStr = (dateStr: string): string => {
+    if (!dateStr || dateStr === 'Undated') return 'Undated';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    const startOfWeek = new Date(d.setDate(diff));
+    return startOfWeek.toISOString().split('T')[0];
+  };
+
+  const getStartOfMonthStr = (dateStr: string): string => {
+    if (!dateStr || dateStr === 'Undated') return 'Undated';
+    return dateStr.substring(0, 7) + '-01';
+  };
+
+  const getBucketKey = (dateStr: string): string => {
+    if (!dateStr || dateStr === 'Undated') return 'Undated';
+    if (bucket === 'week') return getStartOfWeekStr(dateStr);
+    if (bucket === 'month') return getStartOfMonthStr(dateStr);
+    return dateStr;
+  };
+
   const trendsMap: Record<string, {
     visitors: number;
     leads: number;
@@ -455,7 +506,8 @@ export const calculateDailyTrends = (
   }> = {};
 
   filteredRows.forEach(row => {
-    const dateStr = row._date || 'Undated';
+    const rawDate = row._date || 'Undated';
+    const dateStr = getBucketKey(rawDate);
     if (!trendsMap[dateStr]) {
       trendsMap[dateStr] = { visitors: 0, leads: 0, conversions: 0, spend: 0, revenue: 0 };
     }
@@ -477,6 +529,7 @@ export const calculateDailyTrends = (
   });
 
   return Object.keys(trendsMap)
+    .filter(d => d !== 'Undated') // Ignore undated records for time chart
     .sort() // Sort chronologically
     .map(date => ({
       date,
